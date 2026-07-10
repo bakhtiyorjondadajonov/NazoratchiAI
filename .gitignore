@@ -1,0 +1,23 @@
+# secrets & operator-owned files — never commit
+.env
+.env.*
+!.env.example
+config.yaml
+PROMPT.md
+
+# runtime state
+data/
+logs/
+gatekeeper.db*
+detections.jsonl
+calib_set/
+models/*.onnx
+
+# environment / caches
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.claude/
+.DS_Store

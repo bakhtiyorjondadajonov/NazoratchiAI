@@ -1,0 +1,23 @@
+# Bare-metal alternative to Docker Compose. Install:
+#   sudo useradd --system --home /opt/gatekeeper gatekeeper
+#   sudo git clone <repo> /opt/gatekeeper && cd /opt/gatekeeper
+#   sudo -u gatekeeper python3.11 -m venv .venv && sudo -u gatekeeper .venv/bin/pip install -r requirements.txt && sudo -u gatekeeper .venv/bin/pip install --no-deps .
+#   sudo install -m 600 -o gatekeeper .env.example /etc/gatekeeper/env   # then edit tokens
+#   sudo cp deploy/gatekeeper.service /etc/systemd/system/ && sudo systemctl enable --now gatekeeper
+
+[Unit]
+Description=Telegram group gatekeeper bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gatekeeper
+WorkingDirectory=/opt/gatekeeper
+EnvironmentFile=/etc/gatekeeper/env
+ExecStart=/opt/gatekeeper/.venv/bin/gatekeeper --config config.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

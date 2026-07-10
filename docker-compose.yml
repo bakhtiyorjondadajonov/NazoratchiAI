@@ -1,0 +1,19 @@
+services:
+  gatekeeper:
+    build: .
+    restart: unless-stopped
+    init: true  # PID 1 signal delivery (SIGTERM/SIGHUP reach the bot)
+    env_file: .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data   # gatekeeper.db + WAL sidecars + heartbeat
+      - ./logs:/app/logs
+    mem_limit: 1g
+    # no ports: the bot uses long polling, nothing listens
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import os,sys,time; sys.exit(0 if time.time()-os.path.getmtime('/app/data/heartbeat')<90 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
