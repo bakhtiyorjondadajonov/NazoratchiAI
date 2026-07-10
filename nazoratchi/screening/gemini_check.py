@@ -16,7 +16,7 @@ import time
 
 from pydantic import BaseModel
 
-from gatekeeper.config import GeminiCfg
+from nazoratchi.config import GeminiCfg
 
 log = logging.getLogger(__name__)
 

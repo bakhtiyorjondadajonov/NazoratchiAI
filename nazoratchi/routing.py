@@ -13,8 +13,8 @@ import time
 
 from aiogram import Bot
 
-from gatekeeper.config import AppConfig
-from gatekeeper.db import Database
+from nazoratchi.config import AppConfig
+from nazoratchi.db import Database
 
 log = logging.getLogger(__name__)
 

@@ -21,10 +21,10 @@ from collections import OrderedDict
 from aiogram import F, Router
 from aiogram.types import Message
 
-from gatekeeper import actions, routing
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.screening.orchestrator import Orchestrator
+from nazoratchi import actions, routing
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.screening.orchestrator import Orchestrator
 
 log = logging.getLogger(__name__)
 

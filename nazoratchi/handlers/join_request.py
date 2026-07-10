@@ -12,11 +12,11 @@ import logging
 from aiogram import Router
 from aiogram.types import ChatJoinRequest
 
-from gatekeeper import actions, routing
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.logging_setup import log_decision
-from gatekeeper.screening.orchestrator import Orchestrator
+from nazoratchi import actions, routing
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.logging_setup import log_decision
+from nazoratchi.screening.orchestrator import Orchestrator
 
 log = logging.getLogger(__name__)
 

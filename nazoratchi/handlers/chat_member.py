@@ -13,11 +13,11 @@ from aiogram import Router
 from aiogram.filters import JOIN_TRANSITION, ChatMemberUpdatedFilter
 from aiogram.types import ChatMemberUpdated
 
-from gatekeeper import routing
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.logging_setup import log_decision
-from gatekeeper.screening.orchestrator import Orchestrator
+from nazoratchi import routing
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.logging_setup import log_decision
+from nazoratchi.screening.orchestrator import Orchestrator
 
 log = logging.getLogger(__name__)
 

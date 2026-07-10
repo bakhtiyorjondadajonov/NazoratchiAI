@@ -6,11 +6,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from gatekeeper import notifier
-from gatekeeper.db import Database
-from gatekeeper.notifier import _caption, _kb
-from gatekeeper.screening.orchestrator import Orchestrator
-from gatekeeper.screening.verdict import Signal, SignalKind, Verdict
+from nazoratchi import notifier
+from nazoratchi.db import Database
+from nazoratchi.notifier import _caption, _kb
+from nazoratchi.screening.orchestrator import Orchestrator
+from nazoratchi.screening.verdict import Signal, SignalKind, Verdict
 
 from .conftest import make_config
 

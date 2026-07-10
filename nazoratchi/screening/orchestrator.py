@@ -16,15 +16,15 @@ import logging
 
 from aiogram import Bot
 
-from gatekeeper import actions, notifier
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.logging_setup import log_decision
-from gatekeeper.screening.gemini_check import GeminiChecker
-from gatekeeper.screening.nudenet_runtime import NudeNetRuntime
-from gatekeeper.screening.photo_check import check_photos
-from gatekeeper.screening.text_check import TextChecker, check_fields
-from gatekeeper.screening.verdict import Signal, SignalKind, Verdict, decide
+from nazoratchi import actions, notifier
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.logging_setup import log_decision
+from nazoratchi.screening.gemini_check import GeminiChecker
+from nazoratchi.screening.nudenet_runtime import NudeNetRuntime
+from nazoratchi.screening.photo_check import check_photos
+from nazoratchi.screening.text_check import TextChecker, check_fields
+from nazoratchi.screening.verdict import Signal, SignalKind, Verdict, decide
 
 log = logging.getLogger(__name__)
 

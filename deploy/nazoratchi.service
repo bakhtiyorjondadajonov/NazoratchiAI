@@ -1,0 +1,23 @@
+# Bare-metal alternative to Docker Compose. Install:
+#   sudo useradd --system --home /opt/nazoratchi nazoratchi
+#   sudo git clone <repo> /opt/nazoratchi && cd /opt/nazoratchi
+#   sudo -u nazoratchi python3.11 -m venv .venv && sudo -u nazoratchi .venv/bin/pip install -r requirements.txt && sudo -u nazoratchi .venv/bin/pip install --no-deps .
+#   sudo install -m 600 -o nazoratchi .env.example /etc/nazoratchi/env   # then edit tokens
+#   sudo cp deploy/nazoratchi.service /etc/systemd/system/ && sudo systemctl enable --now nazoratchi
+
+[Unit]
+Description=NazoratchiAI - Telegram group gatekeeper bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nazoratchi
+WorkingDirectory=/opt/nazoratchi
+EnvironmentFile=/etc/nazoratchi/env
+ExecStart=/opt/nazoratchi/.venv/bin/nazoratchi --config config.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

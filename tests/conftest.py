@@ -1,7 +1,7 @@
 import pytest
 
-from gatekeeper import routing
-from gatekeeper.config import AppConfig, BotCfg, NudenetCfg
+from nazoratchi import routing
+from nazoratchi.config import AppConfig, BotCfg, NudenetCfg
 
 
 @pytest.fixture(autouse=True)

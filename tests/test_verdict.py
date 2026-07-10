@@ -1,7 +1,7 @@
 import pytest
 
-from gatekeeper.config import BellyComboCfg, NudenetCfg
-from gatekeeper.screening.verdict import (
+from nazoratchi.config import BellyComboCfg, NudenetCfg
+from nazoratchi.screening.verdict import (
     Signal,
     SignalKind,
     Verdict,

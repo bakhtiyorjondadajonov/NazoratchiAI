@@ -18,7 +18,7 @@ import enum
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from gatekeeper.config import NudenetCfg
+from nazoratchi.config import NudenetCfg
 
 
 class Verdict(str, enum.Enum):

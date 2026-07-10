@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from gatekeeper import routing
-from gatekeeper.db import Database
-from gatekeeper.handlers import tenancy
+from nazoratchi import routing
+from nazoratchi.db import Database
+from nazoratchi.handlers import tenancy
 
 from .conftest import make_config
 

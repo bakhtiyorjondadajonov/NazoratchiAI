@@ -15,8 +15,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from gatekeeper.config import TextCfg
-from gatekeeper.screening import textnorm
+from nazoratchi.config import TextCfg
+from nazoratchi.screening import textnorm
 
 _URL_RE = re.compile(r"(?:https?://|www\.|t\.me/)\S+", re.IGNORECASE)
 _MENTION_RE = re.compile(r"@\w{4,}")

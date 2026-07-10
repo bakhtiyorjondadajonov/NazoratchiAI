@@ -16,8 +16,8 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
 
 log = logging.getLogger(__name__)
 

@@ -173,7 +173,7 @@ text:
 
 whitelist_users: []                # user ids always auto-approved in any guarded chat
 
-db_path: data/gatekeeper.db
+db_path: data/nazoratchi.db
 
 logging:
   dir: logs

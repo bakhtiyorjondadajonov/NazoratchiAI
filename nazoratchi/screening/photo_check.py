@@ -15,9 +15,9 @@ from io import BytesIO
 
 from aiogram import Bot
 
-from gatekeeper.config import AppConfig
-from gatekeeper.screening.nudenet_runtime import NudeNetRuntime
-from gatekeeper.screening.verdict import Signal, SignalKind, evaluate_detections
+from nazoratchi.config import AppConfig
+from nazoratchi.screening.nudenet_runtime import NudeNetRuntime
+from nazoratchi.screening.verdict import Signal, SignalKind, evaluate_detections
 
 log = logging.getLogger(__name__)
 

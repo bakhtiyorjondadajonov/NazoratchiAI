@@ -1,4 +1,4 @@
-from gatekeeper.screening import textnorm
+from nazoratchi.screening import textnorm
 
 
 def test_zero_width_stripped():

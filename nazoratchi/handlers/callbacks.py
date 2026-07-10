@@ -17,10 +17,10 @@ import logging
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
-from gatekeeper import actions, notifier
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.logging_setup import log_decision
+from nazoratchi import actions, notifier
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.logging_setup import log_decision
 
 log = logging.getLogger(__name__)
 

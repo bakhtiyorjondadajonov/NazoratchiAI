@@ -16,7 +16,7 @@
    `mode.dry_run: true` (the default) and compare the "would be" reports to
    what you'd decide yourself.
 5. **Flip live**: set `mode.dry_run: false`, then reload
-   (`docker compose kill -s SIGHUP gatekeeper`) or restart.
+   (`docker compose kill -s SIGHUP nazoratchi`) or restart.
 
 > **⚠️ Single instance only.** Never run two copies with the same bot token
 > (e.g., Docker *and* systemd, or two servers): Telegram long polling would
@@ -30,11 +30,11 @@ are needed — the bot uses long polling.
 ## Quick start (Docker Compose)
 
 ```bash
-git clone <repo-url> gatekeeper && cd gatekeeper
+git clone <repo-url> nazoratchi && cd nazoratchi
 cp .env.example .env            # fill in GK_BOT_TOKEN, GK_GEMINI_KEY
 cp config.example.yaml config.yaml   # set admin_chat_id + admin_user_ids
 docker compose up -d --build
-docker compose logs -f          # watch self-checks; expect "🟢 Gatekeeper online"
+docker compose logs -f          # watch self-checks; expect "🟢 NazoratchiAI online"
 ```
 
 The SQLite database, WAL sidecars and the healthcheck heartbeat live in
@@ -43,13 +43,13 @@ The SQLite database, WAL sidecars and the healthcheck heartbeat live in
 ## Operations
 
 - **Reload config** (thresholds/keywords/allowlists, no restart):
-  `docker compose kill -s SIGHUP gatekeeper`.
+  `docker compose kill -s SIGHUP nazoratchi`.
   Caveat: `config.yaml` is bind-mounted as a single file — editors that
   *replace* the file (new inode) leave the container reading the old one.
   Edit in place (`nano`, `sed -i`) or just `docker compose restart`.
 - **Update**: `git pull && docker compose up -d --build`.
 - **Backup** (WAL-safe, run from cron):
-  `sqlite3 data/gatekeeper.db ".backup /backups/gk-$(date +\%F).db"`
+  `sqlite3 data/nazoratchi.db ".backup /backups/gk-$(date +\%F).db"`
   — plus copies of `config.yaml` and `.env`.
 - **Health**: `docker ps` shows `(healthy)` when the event loop touched the
   heartbeat file within 90 s; compose restarts the container on failure.
@@ -58,6 +58,6 @@ The SQLite database, WAL sidecars and the healthcheck heartbeat live in
 
 ## Bare-metal (systemd) alternative
 
-See the install steps in the header of `deploy/gatekeeper.service`.
-`systemctl reload gatekeeper` sends SIGHUP for config reload; `Restart=always`
+See the install steps in the header of `deploy/nazoratchi.service`.
+`systemctl reload nazoratchi` sends SIGHUP for config reload; `Restart=always`
 supervises crashes.

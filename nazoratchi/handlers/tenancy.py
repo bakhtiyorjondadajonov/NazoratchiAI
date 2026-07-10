@@ -13,10 +13,10 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from gatekeeper import routing
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.logging_setup import log_decision
+from nazoratchi import routing
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.logging_setup import log_decision
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         try:
             await msg.bot.send_message(
                 sender.id,
-                f"Gatekeeper enabled for “{msg.chat.title or msg.chat.id}”.\n"
+                f"NazoratchiAI enabled for “{msg.chat.title or msg.chat.id}”.\n"
                 f"Screening reports for that group will arrive here. "
                 f"Use /blocked and /held to review cases.",
             )
@@ -73,7 +73,7 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         log_decision({"event": "group_enabled", "chat_id": msg.chat.id,
                       "title": msg.chat.title, "owner": sender.id})
 
-        reply = "✅ Gatekeeper is ON. New members are screened automatically."
+        reply = "✅ NazoratchiAI is ON. New members are screened automatically."
         problems = await routing.check_group_rights(msg.bot, msg.chat.id)
         if problems:
             reply += "\n⚠️ " + "\n⚠️ ".join(problems)
@@ -87,6 +87,6 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         routing.invalidate(msg.chat.id)
         log_decision({"event": "group_disabled", "chat_id": msg.chat.id,
                       "by": msg.from_user.id})
-        await msg.reply("Gatekeeper is OFF for this group.")
+        await msg.reply("NazoratchiAI is OFF for this group.")
 
     return router

@@ -135,7 +135,7 @@ class AppConfig(BaseModel):
     gemini: GeminiCfg = GeminiCfg()
     text: TextCfg = TextCfg()
     whitelist_users: list[int] = []
-    db_path: str = "gatekeeper.db"
+    db_path: str = "nazoratchi.db"
     logging: LoggingCfg = LoggingCfg()
 
     @field_validator("nudenet")

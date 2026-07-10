@@ -38,8 +38,8 @@ THRESHOLD_GRID = [round(0.20 + 0.05 * i, 2) for i in range(9)]  # 0.20 .. 0.60
 
 
 def _load_runtime(config_path: str):
-    from gatekeeper.config import load_config
-    from gatekeeper.screening.nudenet_runtime import NudeNetRuntime
+    from nazoratchi.config import load_config
+    from nazoratchi.screening.nudenet_runtime import NudeNetRuntime
     cfg = load_config(config_path)
     return cfg, NudeNetRuntime(cfg.nudenet)
 
@@ -104,9 +104,9 @@ def cmd_scan(args) -> None:
 
 
 def cmd_sweep(args) -> None:
-    from gatekeeper.config import load_config
-    from gatekeeper.screening.verdict import Verdict, decide, evaluate_detections
-    from gatekeeper.screening.verdict import Signal, SignalKind
+    from nazoratchi.config import load_config
+    from nazoratchi.screening.verdict import Verdict, decide, evaluate_detections
+    from nazoratchi.screening.verdict import Signal, SignalKind
 
     cfg = load_config(args.config)
     records = [json.loads(line) for line in open(args.jsonl, encoding="utf-8")]

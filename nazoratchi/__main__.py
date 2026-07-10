@@ -20,10 +20,10 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 
-from gatekeeper import notifier, routing
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.handlers import (
+from nazoratchi import notifier, routing
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.handlers import (
     callbacks,
     chat_member,
     commands,
@@ -31,13 +31,13 @@ from gatekeeper.handlers import (
     join_request,
     tenancy,
 )
-from gatekeeper.logging_setup import setup as setup_logging
-from gatekeeper.middleware import RetryAfterMiddleware
-from gatekeeper.screening.gemini_check import GeminiChecker
-from gatekeeper.screening.nudenet_runtime import NudeNetRuntime
-from gatekeeper.screening.orchestrator import Orchestrator
+from nazoratchi.logging_setup import setup as setup_logging
+from nazoratchi.middleware import RetryAfterMiddleware
+from nazoratchi.screening.gemini_check import GeminiChecker
+from nazoratchi.screening.nudenet_runtime import NudeNetRuntime
+from nazoratchi.screening.orchestrator import Orchestrator
 
-log = logging.getLogger("gatekeeper.main")
+log = logging.getLogger("nazoratchi.main")
 
 ALLOWED_UPDATES = ["chat_join_request", "chat_member", "my_chat_member",
                    "callback_query", "message"]
@@ -47,7 +47,7 @@ async def run(config_path: str) -> int:
     holder = ConfigHolder(config_path)
     cfg = holder.current
     setup_logging(cfg.logging.dir, cfg.logging.level)
-    log.info("gatekeeper starting (dry_run=%s)", cfg.mode.dry_run)
+    log.info("NazoratchiAI starting (dry_run=%s)", cfg.mode.dry_run)
 
     db = Database(cfg.db_path)
 
@@ -102,7 +102,7 @@ async def run(config_path: str) -> int:
             with contextlib.suppress(Exception):
                 await notifier.send_alert(
                     bot, holder.current,
-                    "⚠️ Gatekeeper started WITH PROBLEMS:\n- " + "\n- ".join(problems))
+                    "⚠️ NazoratchiAI started WITH PROBLEMS:\n- " + "\n- ".join(problems))
 
         resumed = orchestrator.resume_pending()
         if resumed:
@@ -114,7 +114,7 @@ async def run(config_path: str) -> int:
         with contextlib.suppress(Exception):
             await notifier.send_alert(
                 bot, holder.current,
-                f"🟢 Gatekeeper online (dry_run={holder.current.mode.dry_run}, "
+                f"🟢 NazoratchiAI online (dry_run={holder.current.mode.dry_run}, "
                 f"classifier={'on' if runtime.classifier_active else 'OFF'}, "
                 f"resumed={resumed})")
 
@@ -155,7 +155,7 @@ async def startup_checks(bot: Bot, holder: ConfigHolder, runtime: NudeNetRuntime
         if owner and not group["is_seed"]:
             try:
                 await bot.send_message(
-                    owner, "⚠️ Gatekeeper problems in "
+                    owner, "⚠️ NazoratchiAI problems in "
                     f"“{group['title'] or group['chat_id']}”:\n- "
                     + "\n- ".join(group_problems))
                 continue
@@ -165,7 +165,7 @@ async def startup_checks(bot: Bot, holder: ConfigHolder, runtime: NudeNetRuntime
 
     # operator chat must be reachable — otherwise rejections are invisible
     try:
-        msg = await bot.send_message(cfg.bot.admin_chat_id, "gatekeeper self-check")
+        msg = await bot.send_message(cfg.bot.admin_chat_id, "nazoratchi self-check")
         await bot.delete_message(cfg.bot.admin_chat_id, msg.message_id)
     except Exception as e:
         problems.append(f"admin chat {cfg.bot.admin_chat_id} unreachable: {e}")
@@ -183,7 +183,7 @@ async def startup_checks(bot: Bot, holder: ConfigHolder, runtime: NudeNetRuntime
 
 def main() -> None:
     load_dotenv()  # .env for bare-metal/dev; real environment always wins
-    parser = argparse.ArgumentParser(description="Telegram group gatekeeper bot")
+    parser = argparse.ArgumentParser(description="NazoratchiAI - Telegram group gatekeeper bot")
     parser.add_argument("--config", default="config.yaml", help="path to config.yaml")
     args = parser.parse_args()
     try:

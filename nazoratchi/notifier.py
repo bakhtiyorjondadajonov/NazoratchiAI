@@ -22,9 +22,9 @@ from aiogram.types import (
     InputMediaPhoto,
 )
 
-from gatekeeper.config import AppConfig
-from gatekeeper.db import Database
-from gatekeeper.screening.verdict import Signal, SignalKind, Verdict
+from nazoratchi.config import AppConfig
+from nazoratchi.db import Database
+from nazoratchi.screening.verdict import Signal, SignalKind, Verdict
 
 log = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ async def report(
     signals: list[Signal], flagged_file_ids: list[str], notes: list[str],
     action_taken: str,
 ) -> None:
-    from gatekeeper import routing  # local import: routing imports config, not notifier
+    from nazoratchi import routing  # local import: routing imports config, not notifier
 
     dest = routing.resolve_report_chat(db, cfg, screening["chat_id"])
     dry_run = cfg.mode.dry_run

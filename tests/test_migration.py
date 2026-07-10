@@ -3,7 +3,7 @@ losing data."""
 
 import sqlite3
 
-from gatekeeper.db import Database
+from nazoratchi.db import Database
 
 V1_SCHEMA = """
 CREATE TABLE screenings (

@@ -1,12 +1,12 @@
 services:
-  gatekeeper:
+  nazoratchi:
     build: .
     restart: unless-stopped
     init: true  # PID 1 signal delivery (SIGTERM/SIGHUP reach the bot)
     env_file: .env
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ./data:/app/data   # gatekeeper.db + WAL sidecars + heartbeat
+      - ./data:/app/data   # nazoratchi.db + WAL sidecars + heartbeat
       - ./logs:/app/logs
     mem_limit: 1g
     # no ports: the bot uses long polling, nothing listens

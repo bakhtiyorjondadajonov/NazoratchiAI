@@ -31,13 +31,13 @@ def setup(log_dir: str, level: str = "INFO") -> None:
     root.addHandler(console)
 
     app_file = logging.handlers.RotatingFileHandler(
-        Path(log_dir) / "gatekeeper.log", maxBytes=10_000_000, backupCount=5,
+        Path(log_dir) / "nazoratchi.log", maxBytes=10_000_000, backupCount=5,
         encoding="utf-8",
     )
     app_file.setFormatter(fmt)
     root.addHandler(app_file)
 
-    _decision_logger = logging.getLogger("gatekeeper.decisions")
+    _decision_logger = logging.getLogger("nazoratchi.decisions")
     _decision_logger.setLevel(logging.INFO)
     _decision_logger.propagate = False
     decision_file = logging.handlers.RotatingFileHandler(

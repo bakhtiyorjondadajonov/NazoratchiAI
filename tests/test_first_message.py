@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from gatekeeper.config import ConfigHolder
-from gatekeeper.db import Database
-from gatekeeper.handlers import first_message
+from nazoratchi.config import ConfigHolder
+from nazoratchi.db import Database
+from nazoratchi.handlers import first_message
 
 from .conftest import make_config
 

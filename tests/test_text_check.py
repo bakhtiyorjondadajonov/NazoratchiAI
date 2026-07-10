@@ -1,7 +1,7 @@
 import pytest
 
-from gatekeeper.config import EmojiRulesCfg, LangKeywords, TextCfg
-from gatekeeper.screening.text_check import TextChecker, check_fields
+from nazoratchi.config import EmojiRulesCfg, LangKeywords, TextCfg
+from nazoratchi.screening.text_check import TextChecker, check_fields
 
 
 @pytest.fixture

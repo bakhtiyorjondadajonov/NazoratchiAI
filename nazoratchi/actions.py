@@ -99,7 +99,7 @@ async def create_single_use_invite(bot: Bot, chat_id: int) -> str | None:
         link = await bot.create_chat_invite_link(
             chat_id=chat_id, member_limit=1,
             expire_date=int(time.time()) + 24 * 3600,
-            name="gatekeeper override",
+            name="nazoratchi override",
         )
         return link.invite_link
     except TelegramBadRequest:

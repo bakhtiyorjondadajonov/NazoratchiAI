@@ -1,4 +1,4 @@
-# Telegram Group Gatekeeper Bot
+# NazoratchiAI
 
 Screens every user who enters a Telegram group and removes porn-advertising
 accounts. Exactly one job — after a user passes screening, the bot does nothing.
@@ -66,7 +66,7 @@ Edit `config.yaml`:
 
 - `bot.admin_chat_id` — private group/channel for reports (add the bot there)
 - `bot.admin_user_ids` — who may press the action buttons
-- `chats.allowed` — the group(s) to guard; the bot **leaves any other chat**
+- `chats.allowed` — optional seed groups (other groups self-serve via `/enable`)
 
 Telegram-side setup for each guarded group:
 
@@ -80,8 +80,8 @@ Telegram-side setup for each guarded group:
 Run:
 
 ```bash
-.venv/bin/gatekeeper --config config.yaml
-# or: .venv/bin/python -m gatekeeper --config config.yaml
+.venv/bin/nazoratchi --config config.yaml
+# or: .venv/bin/python -m nazoratchi --config config.yaml
 ```
 
 `kill -HUP <pid>` re-loads thresholds / keywords / allowlists without a restart.
@@ -124,7 +124,7 @@ takes no action. Keep it that way until:
 
 Ongoing: every admin override and reported miss should go into the calibration
 set; re-sweep monthly. Raw detections for every screening are also stored in
-the `detections` table of `gatekeeper.db`.
+the `detections` table of `nazoratchi.db`.
 
 ## Accepted limitations (read this, admins)
 

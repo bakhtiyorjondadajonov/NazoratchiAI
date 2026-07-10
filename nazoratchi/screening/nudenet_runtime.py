@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from gatekeeper.config import NudenetCfg
+from nazoratchi.config import NudenetCfg
 
 log = logging.getLogger(__name__)
 

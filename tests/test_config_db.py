@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from gatekeeper.config import load_config
-from gatekeeper.db import Database
+from nazoratchi.config import load_config
+from nazoratchi.db import Database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

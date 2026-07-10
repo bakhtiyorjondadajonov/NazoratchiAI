@@ -6,7 +6,7 @@ COPY requirements.txt .
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 COPY pyproject.toml README.md ./
-COPY gatekeeper ./gatekeeper
+COPY nazoratchi ./nazoratchi
 RUN /opt/venv/bin/pip install --no-cache-dir --no-deps .
 
 # --- runtime -----------------------------------------------------------------
@@ -27,9 +27,9 @@ import hashlib, sys, urllib.request
 EXPECTED = "e0746121167fd94c9b5327831472221dca88fb3746c2a5ffd6b6f301fc1ff04a"
 URLS = [
     ("https://github.com/notAI-tech/NudeNet/releases/download/v0/classifier_model.onnx",
-     {"User-Agent": "gatekeeper-build"}),
+     {"User-Agent": "nazoratchi-build"}),
     ("https://api.github.com/repos/notAI-tech/NudeNet/releases/assets/31196404",
-     {"User-Agent": "gatekeeper-build", "Accept": "application/octet-stream"}),
+     {"User-Agent": "nazoratchi-build", "Accept": "application/octet-stream"}),
 ]
 for url, headers in URLS:
     try:
@@ -60,4 +60,4 @@ USER app
 WORKDIR /app
 COPY --chown=app:app scripts ./scripts
 
-ENTRYPOINT ["gatekeeper", "--config", "config.yaml"]
+ENTRYPOINT ["nazoratchi", "--config", "config.yaml"]
