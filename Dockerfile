@@ -19,10 +19,33 @@ RUN apt-get update \
 
 # v2 classifier baked in: immutable, checksum-verified at build, no runtime
 # network dependency. This layer sits before the venv copy so source changes
-# never re-download the 83MB model.
-ADD --checksum=sha256:e0746121167fd94c9b5327831472221dca88fb3746c2a5ffd6b6f301fc1ff04a \
-    https://github.com/notAI-tech/NudeNet/releases/download/v0/classifier_model.onnx \
-    /app/models/classifier_model.onnx
+# never re-download the 83MB model. Two URLs: some networks serve an HTML
+# page on the plain release URL; the API asset endpoint is the fallback.
+RUN mkdir -p /app/models && python - <<'EOF'
+import hashlib, sys, urllib.request
+
+EXPECTED = "e0746121167fd94c9b5327831472221dca88fb3746c2a5ffd6b6f301fc1ff04a"
+URLS = [
+    ("https://github.com/notAI-tech/NudeNet/releases/download/v0/classifier_model.onnx",
+     {"User-Agent": "gatekeeper-build"}),
+    ("https://api.github.com/repos/notAI-tech/NudeNet/releases/assets/31196404",
+     {"User-Agent": "gatekeeper-build", "Accept": "application/octet-stream"}),
+]
+for url, headers in URLS:
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        data = urllib.request.urlopen(req, timeout=300).read()
+    except Exception as e:
+        print(f"fetch failed: {url}: {e}", file=sys.stderr)
+        continue
+    digest = hashlib.sha256(data).hexdigest()
+    if digest == EXPECTED:
+        open("/app/models/classifier_model.onnx", "wb").write(data)
+        print(f"classifier model OK from {url}")
+        sys.exit(0)
+    print(f"checksum mismatch from {url}: {digest}", file=sys.stderr)
+sys.exit("could not fetch a checksum-valid classifier model")
+EOF
 
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
