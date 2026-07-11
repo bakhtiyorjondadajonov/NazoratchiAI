@@ -1,0 +1,190 @@
+# ============================================================================
+# Gatekeeper bot configuration.
+# Thresholds, keyword tiers, allowlists and model ids are all editable here.
+# SIGHUP reloads keywords/thresholds/allowlists; model paths and worker
+# counts need a restart.
+# ============================================================================
+
+bot:
+  token_env: GK_BOT_TOKEN # env var holding the bot token
+  admin_chat_id: 981331281 # operator reports -> your DM (you pressed Start)
+  admin_user_ids: [981331281] # allowed to press buttons / use /blocked, /held
+
+chats:
+  allowed: [] # optional SEED groups: auto-enabled at startup, reports go to the
+    # operator chat. Other groups self-serve via /enable.
+
+tenancy:
+  max_groups_per_owner: 20 # per-admin cap on /enable'd groups (operators exempt)
+
+default_language: en # fallback UI language (en | uz); groups pick their own at /enable
+
+mode:
+  dry_run: false # real actions (private-group test); use dry-run for calibration on live traffic
+  notify_pending_user: false # DM requesters "being reviewed" before processing (no reasons revealed)
+  check_first_message_content: true # analyze first-message text/photos (kill switch; payload still persisted)
+
+queue:
+  workers: 4
+  flood_alert_depth: 25 # queue deeper than this -> "possible raid" admin alert
+
+photos:
+  max_photos: 5 # scan the 5 most recent profile photos
+  download_retries: 2
+
+nudenet:
+  detector_model: null # null = 320n model bundled with the nudenet package
+  classifier_enabled: true
+  classifier_model: models/classifier_model.onnx # v2 classifier (download from NudeNet v0 release)
+  classifier_unsafe_threshold: 0.70
+  inference_resolution: 320
+  max_concurrent_inferences: 2 # parallel screenings doing inference
+  intra_op_threads: 2 # CPU threads per inference session
+  # Per-class thresholds. Exposed classes use 3 zones (a real false positive
+  # taught us the detector emits 0.2-0.35 junk guesses on normal photos):
+  #   score < hold             -> ignore (detector noise)
+  #   hold <= score < decline  -> HOLD: report with Ban/Keep buttons, no auto-ban
+  #   score >= decline         -> auto-decline (ban)
+  decline: # high-confidence exposed nudity -> auto-decline
+    FEMALE_GENITALIA_EXPOSED: 0.60
+    MALE_GENITALIA_EXPOSED: 0.60
+    ANUS_EXPOSED: 0.60
+    FEMALE_BREAST_EXPOSED: 0.60
+    BUTTOCKS_EXPOSED: 0.60
+  hold: # ambiguous exposed + underwear/lingerie -> admin review
+    FEMALE_GENITALIA_EXPOSED: 0.40
+    MALE_GENITALIA_EXPOSED: 0.40
+    ANUS_EXPOSED: 0.40
+    FEMALE_BREAST_EXPOSED: 0.40
+    BUTTOCKS_EXPOSED: 0.40
+    FEMALE_GENITALIA_COVERED: 0.30
+    ANUS_COVERED: 0.30
+    FEMALE_BREAST_COVERED: 0.40
+    BUTTOCKS_COVERED: 0.45
+    MALE_BREAST_EXPOSED: 0.45 # kept as a hold signal: NudeNet misgenders topless photos both ways
+  belly_combo: # bikini backstop: belly + near-threshold covered class
+    belly_exposed_min: 0.50
+    covered_class_margin: 0.10
+  ignore: # fire on completely normal photos - never act on these
+    - FACE_FEMALE
+    - FACE_MALE
+    - FEET_EXPOSED
+    - FEET_COVERED
+    - ARMPITS_EXPOSED
+    - ARMPITS_COVERED
+    - BELLY_COVERED
+
+gemini:
+  enabled: true
+  model: gemini-2.5-flash-lite # swap here when migrating models
+  api_key_env: GK_GEMINI_KEY
+  timeout_s: 10
+  retries: 3
+  temperature: 0.1
+  circuit_breaker_failures: 5 # consecutive failures before skipping Gemini for a cooldown
+  circuit_breaker_cooldown_s: 300
+
+# ----------------------------------------------------------------------------
+# Text screening. STARTER lists - extend with a native Uzbek speaker and feed
+# confirmed-adult bios from the decision log back in over time.
+# hard = unambiguous adult-ad marker (auto-decline tier)
+# soft = ambiguous (escalated to Gemini)
+# ----------------------------------------------------------------------------
+text:
+  leet_pass: true
+  hard_keywords:
+    en:
+      - porn
+      - porno
+      - onlyfans
+      - fansly
+      - escort
+      - blowjob
+      - deepthroat
+      - gangbang
+      - cumshot
+      - sexting
+      - "my nudes"
+      - camgirl
+      - "adult content"
+      - xxx
+    ru:
+      - порно
+      - эскорт
+      - проститутка
+      - шлюха
+      - минет
+      - "интим услуги"
+      - "секс услуги"
+      - вирт
+      - "солью слив"
+      - шкура18
+    uz_latin:
+      - jalab
+      - fohisha
+      - "seks xizmat"
+      - "intim xizmat"
+      - sikish
+    uz_cyrillic:
+      - жалаб
+      - фоҳиша
+      - "секс хизмат"
+      - "интим хизмат"
+      - сикиш
+  soft_keywords:
+    en:
+      - sex
+      - nudes
+      - nude
+      - naked
+      - horny
+      - hookup
+      - "adult dating"
+      - stripchat
+      - "private channel"
+      - "18 plus"
+    ru:
+      - секс
+      - интим
+      - голая
+      - обнаженная
+      - знакомства
+      - "приватный канал"
+      - досуг
+      - "ищу спонсора"
+      - содержанка
+    uz_latin:
+      - seks
+      - intim
+      - "tanishuv 18"
+      - "yalang'och"
+    uz_cyrillic:
+      - секс
+      - интим
+      - "танишув 18"
+      - яланғоч
+  emoji:
+    hard: ["🔞"]
+    soft_combo_emojis: ["🍑", "💦", "🍆", "🍒", "😈", "🥵", "👅", "🔥"]
+    min_combo: 2 # this many combo emojis alone = soft signal; 1 + link/mention/18+ also
+  hard_link_patterns: # regexes on casefolded + homoglyph-folded text
+    - 'onlyfans\.'
+    - 'fansly\.'
+  soft_link_patterns:
+    - 't\.me/\+'
+    - 't\.me/joinchat'
+    - 'linktr\.ee'
+    - 'taplink\.'
+    - 'beacons\.ai'
+    - 'bit\.ly'
+    - 'tinyurl\.'
+    - 'cutt\.ly'
+    - 'telegra\.ph'
+
+whitelist_users: [] # user ids always auto-approved in any guarded chat
+
+db_path: data/nazoratchi.db
+
+logging:
+  dir: logs
+  level: INFO
