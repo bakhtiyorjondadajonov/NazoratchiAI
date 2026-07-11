@@ -21,7 +21,7 @@ from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 
 from nazoratchi import notifier, routing
-from nazoratchi.config import ConfigHolder
+from nazoratchi.config import ConfigHolder, materialize_config_from_env
 from nazoratchi.db import Database
 from nazoratchi.handlers import (
     callbacks,
@@ -186,6 +186,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="NazoratchiAI - Telegram group gatekeeper bot")
     parser.add_argument("--config", default="config.yaml", help="path to config.yaml")
     args = parser.parse_args()
+    # PaaS deployments (Railway etc.) deliver the config via env var
+    materialize_config_from_env(args.config)
     try:
         sys.exit(asyncio.run(run(args.config)))
     except KeyboardInterrupt:

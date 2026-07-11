@@ -150,6 +150,22 @@ class AppConfig(BaseModel):
         return v
 
 
+def materialize_config_from_env(path: str | Path,
+                                env_var: str = "GK_CONFIG_YAML") -> bool:
+    """PaaS support (e.g. Railway): when the env var holds a full YAML config,
+    write it to `path` before loading. It re-materializes on every boot, so
+    dashboard edits apply via redeploy/restart; when the var is unset, a
+    hand-edited file + SIGHUP works as before. Returns True if written."""
+    content = os.environ.get(env_var, "")
+    if not content.strip():
+        return False
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(content, encoding="utf-8")
+    log.info("config written to %s from $%s", p, env_var)
+    return True
+
+
 def load_config(path: str | Path) -> AppConfig:
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)

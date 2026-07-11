@@ -56,6 +56,41 @@ The SQLite database, WAL sidecars and the healthcheck heartbeat live in
 - **Bad token**: the bot fails loudly at startup and compose will restart it
   in a loop — check `docker compose logs` first if the container keeps dying.
 
+## Railway (no card — ~2-week trial)
+
+Railway's one-time $5 trial needs no card and fits this bot (no forced sleep,
+worker without a port, volume for the database). At ~1 GB RAM the credit lasts
+roughly **15–19 days** — a proving ground, not a permanent home.
+
+1. Sign up at railway.com **with your GitHub account**, then visit
+   **railway.com/verify** — a verified account gets the *Full Trial*. The
+   unverified *Limited Trial* restricts outbound network access, which can
+   break Telegram polling itself.
+2. New Project → **GitHub Repository** → select this repo (the Dockerfile is
+   auto-detected).
+3. Service → Settings → **Volumes**: add a volume mounted at **`/app/data`**
+   (SQLite database + heartbeat live there; trial cap 0.5 GB is plenty).
+4. Service → **Variables**: set
+   - `GK_BOT_TOKEN` — from @BotFather
+   - `GK_GEMINI_KEY` — from Google AI Studio
+   - `GK_CONFIG_YAML` — paste the FULL contents of your filled-in
+     `config.example.yaml` (admin ids set!), and change one line for Railway:
+     **`logging.dir: data/logs`** — the container filesystem is wiped on every
+     deploy, so the decisions audit log must live on the volume. (App logs
+     also stream to Railway's log view.)
+5. Deploy → open the logs → expect `🟢 NazoratchiAI online`.
+6. Config changes: edit `GK_CONFIG_YAML` in the dashboard and redeploy
+   (the env-delivered config is re-written at every boot; SIGHUP reload
+   applies only to hand-edited files on a VM).
+7. **Back up before the credit runs out** (~day 15): `railway ssh` →
+   `sqlite3 data/nazoratchi.db ".backup data/backup.db"`, download it, and
+   note that trial volumes are deleted 30 days after credits expire.
+
+**When the trial ends** — same image, three sustainable homes: Railway Hobby
+(~$11–12/mo, post-paid card required), Fly.io (~$6/mo), or an Oracle
+Always Free ARM VM ($0). Migrating = moving `.env`, the config, and the
+SQLite file.
+
 ## Bare-metal (systemd) alternative
 
 See the install steps in the header of `deploy/nazoratchi.service`.

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from nazoratchi.config import load_config
+from nazoratchi.config import load_config, materialize_config_from_env
 from nazoratchi.db import Database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -19,6 +19,22 @@ def test_repo_config_is_valid():
     # every threshold sane
     for t in {**cfg.nudenet.decline, **cfg.nudenet.hold}.values():
         assert 0.2 <= t <= 0.9
+
+
+def test_config_materializes_from_env(tmp_path, monkeypatch):
+    """Railway-style delivery: full YAML in $GK_CONFIG_YAML is written to disk
+    before loading."""
+    target = tmp_path / "cfg" / "config.yaml"
+    yaml_text = (REPO_ROOT / "config.example.yaml").read_text()
+
+    monkeypatch.delenv("GK_CONFIG_YAML", raising=False)
+    assert materialize_config_from_env(target) is False  # no-op when unset
+    assert not target.exists()
+
+    monkeypatch.setenv("GK_CONFIG_YAML", yaml_text)
+    assert materialize_config_from_env(target) is True
+    cfg = load_config(target)  # parses to a valid AppConfig
+    assert cfg.photos.max_photos == 5
 
 
 def test_config_rejects_class_in_both_tiers(tmp_path):
