@@ -71,15 +71,16 @@ def add_screening(db, context):
 
 
 @pytest.mark.asyncio
-async def test_content_text_hard_banned_with_revoke(tmp_path, report_spy):
+async def test_content_text_hard_held_never_bans(tmp_path, report_spy):
+    """Owner's rule: a hard keyword reports to the admin (Ban/Keep buttons)
+    but never auto-bans — words alone must not remove a real person."""
     db, bot, orch = make_env(tmp_path, make_cfg())
     sid = add_screening(db, {"message_id": 1, "text": "kanal: porno 24/7",
                              "photo_file_id": None, "photo_unique_id": None})
     await orch._process(sid)
     d = db.get_decision(sid)
-    assert d["verdict"] == "decline" and d["action_taken"] == "banned"
-    bot.ban_chat_member.assert_awaited_once_with(
-        chat_id=-100, user_id=42, revoke_messages=True)
+    assert d["verdict"] == "hold" and d["action_taken"] == "kept_flagged"
+    bot.ban_chat_member.assert_not_awaited()
     assert 'message: keyword' in d["signals_json"]
 
 
@@ -99,7 +100,9 @@ async def test_content_photo_exposed_banned_with_evidence(tmp_path, report_spy):
 
 
 @pytest.mark.asyncio
-async def test_content_photo_covered_banned_pending(tmp_path, report_spy):
+async def test_content_photo_covered_bans_pending_and_deletes(tmp_path, report_spy):
+    """Owner's policy: photos act, words ask — a photo-backed hold bans
+    immediately (reversible via Unban) and deletes the first message."""
     runtime = make_runtime(detections=[
         {"class": "FEMALE_BREAST_COVERED", "score": 0.6, "box": None}])
     db, bot, orch = make_env(tmp_path, make_cfg(), runtime)
@@ -108,6 +111,26 @@ async def test_content_photo_covered_banned_pending(tmp_path, report_spy):
     await orch._process(sid)
     d = db.get_decision(sid)
     assert d["verdict"] == "hold" and d["action_taken"] == "banned_pending"
+    bot.ban_chat_member.assert_awaited_once_with(
+        chat_id=-100, user_id=42, revoke_messages=True)
+
+
+@pytest.mark.asyncio
+async def test_gemini_adult_hold_keeps_user_in(tmp_path, report_spy):
+    """A text judged an ad by Gemini holds WITHOUT banning (words ask)."""
+    cfg = make_config(text=TextCfg(soft_keywords=LangKeywords(en=["nudes"])))
+    db, bot, _ = make_env(tmp_path, cfg)
+    from nazoratchi.screening.gemini_check import BioVerdict
+    gemini = SimpleNamespace(classify=AsyncMock(return_value=GeminiOutcome(
+        status="ok", verdict=BioVerdict(is_adult=True, confidence=0.95,
+                                        reason="adult-service ad"))))
+    orch = Orchestrator(bot, db, Holder(cfg), make_runtime(), gemini)
+    sid = add_screening(db, {"message_id": 9, "text": "selling nudes cheap",
+                             "photo_file_id": None, "photo_unique_id": None})
+    await orch._process(sid)
+    d = db.get_decision(sid)
+    assert d["verdict"] == "hold" and d["action_taken"] == "kept_flagged"
+    bot.ban_chat_member.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -156,5 +179,5 @@ async def test_resume_processes_persisted_context(tmp_path, report_spy):
     orch2 = Orchestrator(bot2, db, Holder(make_cfg()), make_runtime(), make_gemini())
     assert orch2.resume_pending() == 1
     await orch2._process(sid)
-    assert db.get_decision(sid)["action_taken"] == "banned"
-    bot2.ban_chat_member.assert_awaited_once()
+    # keyword hit → held for the admin (never auto-banned)
+    assert db.get_decision(sid)["action_taken"] == "kept_flagged"

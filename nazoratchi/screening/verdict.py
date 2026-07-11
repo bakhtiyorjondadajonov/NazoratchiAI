@@ -30,8 +30,8 @@ class Verdict(str, enum.Enum):
 class SignalKind(str, enum.Enum):
     # decline tier
     EXPOSED_HIT = "exposed_hit"
-    TEXT_HARD = "text_hard"
     # hold tier
+    TEXT_HARD = "text_hard"  # words alone never auto-ban — the admin decides
     COVERED_HIT = "covered_hit"
     BELLY_COMBO_HIT = "belly_combo_hit"
     CLASSIFIER_UNSAFE = "classifier_unsafe"
@@ -45,8 +45,9 @@ class SignalKind(str, enum.Enum):
     GEMINI_UNAVAILABLE = "gemini_unavailable"
 
 
-DECLINE_KINDS = {SignalKind.EXPOSED_HIT, SignalKind.TEXT_HARD}
+DECLINE_KINDS = {SignalKind.EXPOSED_HIT}
 HOLD_KINDS = {
+    SignalKind.TEXT_HARD,
     SignalKind.COVERED_HIT,
     SignalKind.BELLY_COMBO_HIT,
     SignalKind.CLASSIFIER_UNSAFE,
@@ -104,6 +105,10 @@ def evaluate_detections(
                 score=best[cls], photo_index=photo_index, extra={"class": cls},
             ))
     for cls, threshold in cfg.hold.items():
+        # 3-zone classes: a score in the decline zone already fired above —
+        # don't double-report it as a hold signal too
+        if cls in cfg.decline and best.get(cls, 0.0) >= cfg.decline[cls]:
+            continue
         if best.get(cls, 0.0) >= threshold:
             signals.append(Signal(
                 SignalKind.COVERED_HIT, f"{cls}={best[cls]:.2f}",

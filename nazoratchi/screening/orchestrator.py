@@ -229,12 +229,12 @@ class Orchestrator:
             log.exception("admin report failed for screening %d (decision %s/%s stands)",
                           screening_id, verdict.value, action_taken)
 
-    # HOLD caused by these kinds = the profile itself looks bad → ban on the
-    # open-join path. HOLD caused only by infra failure must never ban anyone.
-    _CONTENT_HOLD_KINDS = {
+    # Owner's policy: photos act, words ask. A HOLD backed by photo evidence
+    # bans immediately (reversible via the Unban button) and deletes the
+    # message; text-only and infra holds keep the user in and ask the admin.
+    _PHOTO_HOLD_KINDS = {
         SignalKind.COVERED_HIT, SignalKind.BELLY_COMBO_HIT,
-        SignalKind.CLASSIFIER_UNSAFE, SignalKind.GEMINI_ADULT,
-        SignalKind.GEMINI_BLOCKED,
+        SignalKind.CLASSIFIER_UNSAFE,
     }
 
     async def _apply(self, row, verdict: Verdict, cfg, signals: list[Signal]) -> str:
@@ -261,11 +261,11 @@ class Orchestrator:
                                        revoke_messages=revoke)
                 return "banned" if ok else "ban_failed"
             if verdict == Verdict.HOLD:
-                if any(s.kind in self._CONTENT_HOLD_KINDS for s in signals):
+                if any(s.kind in self._PHOTO_HOLD_KINDS for s in signals):
                     ok = await actions.ban(self.bot, chat_id, user_id,
                                            revoke_messages=revoke)
                     return "banned_pending" if ok else "ban_failed"
-                # infra-failure hold: never ban over a network blip
+                # word-only or infra hold: never auto-ban — the admin decides
                 return "kept_flagged"
             return "kept"
 

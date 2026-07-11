@@ -1,9 +1,9 @@
 """Keyword / emoji / link screening of user-supplied text (bio + names + username).
 
 Tiers:
-- HARD: unambiguous adult-ad markers → TEXT_HARD signal (auto-decline tier).
-  Requires a word-boundary match on a spaced variant (or a hard link/emoji),
-  so obfuscated text can never auto-decline by itself.
+- HARD: unambiguous adult-ad markers → TEXT_HARD signal (hold tier: reported
+  to the admin with Ban/Keep buttons — words alone never auto-ban).
+  Requires a word-boundary match on a spaced variant (or a hard link/emoji).
 - SOFT: ambiguous → TEXT_SOFT signal; the caller escalates to Gemini.
   Includes squashed-variant matches of ANY keyword (obfuscation like "s.e.x"),
   emoji combinations, suspicious links, mention-plus-signal, and heavy use of

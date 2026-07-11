@@ -8,9 +8,11 @@ from nazoratchi.config import AppConfig, BotCfg, NudenetCfg
 def _clear_routing_caches():
     routing._enabled_cache.clear()
     routing._dest_cache.clear()
+    routing._lang_cache.clear()
     yield
     routing._enabled_cache.clear()
     routing._dest_cache.clear()
+    routing._lang_cache.clear()
 
 
 def make_config(**over) -> AppConfig:

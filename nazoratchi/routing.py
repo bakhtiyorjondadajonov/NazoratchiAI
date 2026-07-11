@@ -15,17 +15,20 @@ from aiogram import Bot
 
 from nazoratchi.config import AppConfig
 from nazoratchi.db import Database
+from nazoratchi.strings import t
 
 log = logging.getLogger(__name__)
 
 _TTL = 60.0
 _enabled_cache: dict[int, tuple[float, bool]] = {}
 _dest_cache: dict[int, tuple[float, int]] = {}
+_lang_cache: dict[int, tuple[float, str]] = {}
 
 
 def invalidate(chat_id: int) -> None:
     _enabled_cache.pop(chat_id, None)
     _dest_cache.pop(chat_id, None)
+    _lang_cache.pop(chat_id, None)
 
 
 def is_group_enabled(db: Database, chat_id: int) -> bool:
@@ -54,22 +57,31 @@ def resolve_report_chat(db: Database, cfg: AppConfig, chat_id: int) -> int:
     return dest
 
 
-async def check_group_rights(bot: Bot, chat_id: int) -> list[str]:
+def resolve_language(db: Database, cfg: AppConfig, chat_id: int) -> str:
+    """Known group → its stored language; unknown → the configured default."""
+    now = time.monotonic()
+    hit = _lang_cache.get(chat_id)
+    if hit and now - hit[0] < _TTL:
+        return hit[1]
+    row = db.get_group(chat_id)
+    lang = row["language"] if row else cfg.default_language
+    _lang_cache[chat_id] = (now, lang)
+    return lang
+
+
+async def check_group_rights(bot: Bot, chat_id: int, lang: str = "en") -> list[str]:
     """Human-readable problems with the bot's rights in a group (empty = OK)."""
     problems: list[str] = []
     try:
         me = await bot.me()
         member = await bot.get_chat_member(chat_id, me.id)
         if member.status != "administrator":
-            problems.append(f"bot is not an administrator in chat {chat_id}")
+            problems.append(t(lang, "rights.not_admin", chat=chat_id))
         else:
             if not getattr(member, "can_restrict_members", False):
-                problems.append(f"bot lacks 'Ban users' right in chat {chat_id} "
-                                f"— it cannot remove anyone")
+                problems.append(t(lang, "rights.no_ban", chat=chat_id))
             if not getattr(member, "can_invite_users", False):
-                problems.append(f"bot lacks 'Invite users' right in chat {chat_id} "
-                                f"— join-request mode and override invite links "
-                                f"will not work")
+                problems.append(t(lang, "rights.no_invite", chat=chat_id))
     except Exception as e:
-        problems.append(f"cannot inspect chat {chat_id}: {e}")
+        problems.append(t(lang, "rights.cannot_inspect", chat=chat_id, error=e))
     return problems

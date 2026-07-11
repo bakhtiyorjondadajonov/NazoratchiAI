@@ -16,8 +16,11 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from nazoratchi import routing
 from nazoratchi.config import ConfigHolder
 from nazoratchi.db import Database
+from nazoratchi.notifier import user_link
+from nazoratchi.strings import label, t
 
 log = logging.getLogger(__name__)
 
@@ -59,18 +62,32 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
             pass
         return _REFUSED
 
+    def _lang_for(msg: Message) -> str:
+        """Language of the chat the command was typed in — NOT the visibility
+        scope (an operator inside a group must still get that group's language).
+        In a DM, a single owned group is unambiguous; otherwise the default."""
+        cfg = holder.current
+        if msg.chat.type in ("group", "supergroup"):
+            return routing.resolve_language(db, cfg, msg.chat.id)
+        owned = db.groups_owned_by(msg.from_user.id) if msg.from_user else []
+        if len(owned) == 1:
+            return routing.resolve_language(db, cfg, owned[0])
+        return cfg.default_language
+
     @router.message(Command("blocked"))
     async def cmd_blocked(msg: Message) -> None:
         scope = await _scope(msg)
         if scope is _REFUSED:
             return
+        lang = _lang_for(msg)
         rows = db.list_by_action(BLOCKED_ACTIONS, limit=MAX_ROWS, chat_ids=scope)
         await _send_list(
-            msg, db, rows,
-            title="⛔ Currently blocked",
-            empty="No blocked users on record.",
-            button=lambda r: ("🔓 Unban", "unban") if r["action_taken"] == "banned"
-                             else ("🔓 Override", "override"),
+            msg, db, rows, lang=lang,
+            title=t(lang, "list.blocked_title"),
+            empty=t(lang, "list.blocked_empty"),
+            button=lambda r: (t(lang, "btn.unban_short"), "unban")
+                             if r["action_taken"] == "banned"
+                             else (t(lang, "btn.override_short"), "override"),
         )
 
     @router.message(Command("held"))
@@ -78,44 +95,49 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         scope = await _scope(msg)
         if scope is _REFUSED:
             return
+        lang = _lang_for(msg)
         rows = db.list_by_action(HELD_ACTIONS, limit=MAX_ROWS, chat_ids=scope)
         await _send_list(
-            msg, db, rows,
-            title="⏸ Awaiting review",
-            empty="Nothing is awaiting review.",
-            button=lambda r: ("✅ Approve", "approve") if r["action_taken"] == "pending"
-                             else ("🔓 Unban", "unban"),
+            msg, db, rows, lang=lang,
+            title=t(lang, "list.held_title"),
+            empty=t(lang, "list.held_empty"),
+            button=lambda r: (t(lang, "btn.approve_short"), "approve")
+                             if r["action_taken"] == "pending"
+                             else (t(lang, "btn.unban_short"), "unban"),
         )
 
     return router
 
 
 async def _send_list(msg: Message, db: Database, rows, *, title: str, empty: str,
-                     button) -> None:
+                     button, lang: str = "en") -> None:
     if not rows:
         await msg.answer(empty)
         return
-    lines = [f"<b>{title}</b> (latest {len(rows)}):"]
+    lines = [f"<b>{title}</b> {t(lang, 'list.latest', n=len(rows))}:"]
     kb_rows: list[list[InlineKeyboardButton]] = []
     titles: dict[int, str] = {}
-    for r in rows:
+    for i, r in enumerate(rows, 1):
         if r["chat_id"] not in titles:
             group = db.get_group(r["chat_id"])
             titles[r["chat_id"]] = (group["title"] if group and group["title"]
                                     else str(r["chat_id"]))
         name = " ".join(filter(None, [r["first_name"], r["last_name"]])) or str(r["user_id"])
-        username = f" @{r['username']}" if r["username"] else ""
+        link = user_link(r["user_id"], r["first_name"], r["last_name"], r["username"])
+        username = f" — @{html.escape(r['username'])}" if r["username"] else ""
         age_h = (time.time() - r["resolved_at"]) / 3600
-        age = f"{age_h:.0f}h ago" if age_h < 48 else f"{age_h / 24:.0f}d ago"
-        lines.append(
-            f"• <b>{html.escape(name[:40])}</b>{html.escape(username)}"
-            f" (<code>{r['user_id']}</code>) in {html.escape(titles[r['chat_id']][:30])}"
-            f" — {_trigger_summary(r['signals_json'])}"
-            f" · {r['action_taken']} · {age}"
-        )
-        label, action = button(r)
+        age = (t(lang, "age.hours", n=f"{age_h:.0f}") if age_h < 48
+               else t(lang, "age.days", n=f"{age_h / 24:.0f}"))
+        lines += [
+            "",
+            f"{i}. {link}{username}",
+            f"   🆔 <code>{r['user_id']}</code> · {html.escape(titles[r['chat_id']][:30])}",
+            f"   🚩 {_trigger_summary(r['signals_json'])}"
+            f" · {html.escape(label(lang, 'action', r['action_taken']))} · {age}",
+        ]
+        btn_label, action = button(r)
         kb_rows.append([InlineKeyboardButton(
-            text=f"{label}: {name[:24]}",
+            text=f"{i}. {btn_label} — {name[:20]}",
             callback_data=f"gk:{action}:{r['id']}",
         )])
     await msg.answer(

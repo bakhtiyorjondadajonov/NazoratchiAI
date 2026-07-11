@@ -17,6 +17,7 @@ from nazoratchi.config import ConfigHolder
 from nazoratchi.db import Database
 from nazoratchi.logging_setup import log_decision
 from nazoratchi.screening.orchestrator import Orchestrator
+from nazoratchi.strings import t
 
 log = logging.getLogger(__name__)
 
@@ -63,8 +64,7 @@ def build_router(holder: ConfigHolder, db: Database, orchestrator: Orchestrator)
             # closes at approve/decline time
             await actions.try_dm(
                 req.bot, req.user_chat_id,
-                "Your request to join is being reviewed. You'll be admitted "
-                "automatically if everything checks out.",
+                t(routing.resolve_language(db, cfg, req.chat.id), "user.pending"),
             )
 
         await orchestrator.enqueue(screening_id)

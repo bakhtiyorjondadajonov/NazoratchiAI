@@ -17,6 +17,8 @@ chats:
 tenancy:
   max_groups_per_owner: 20         # per-admin cap on /enable'd groups (operators exempt)
 
+default_language: en               # fallback UI language (en | uz); groups pick their own at /enable
+
 mode:
   dry_run: true                    # start in dry-run: report verdicts, take no action. Flip after calibration.
   notify_pending_user: false       # DM requesters "being reviewed" before processing (no reasons revealed)
@@ -38,14 +40,23 @@ nudenet:
   inference_resolution: 320
   max_concurrent_inferences: 2     # parallel screenings doing inference
   intra_op_threads: 2              # CPU threads per inference session
-  # Per-class thresholds. Calibrate with scripts/calibrate.py before go-live.
-  decline:                         # exposed nudity -> auto-decline
-    FEMALE_GENITALIA_EXPOSED: 0.25
-    MALE_GENITALIA_EXPOSED: 0.25
-    ANUS_EXPOSED: 0.25
-    FEMALE_BREAST_EXPOSED: 0.28
-    BUTTOCKS_EXPOSED: 0.28
-  hold:                            # underwear/lingerie/bikini -> hold for admin review
+  # Per-class thresholds. Exposed classes use 3 zones (a real false positive
+  # taught us the detector emits 0.2-0.35 junk guesses on normal photos):
+  #   score < hold             -> ignore (detector noise)
+  #   hold <= score < decline  -> HOLD: report with Ban/Keep buttons, no auto-ban
+  #   score >= decline         -> auto-decline (ban)
+  decline:                         # high-confidence exposed nudity -> auto-decline
+    FEMALE_GENITALIA_EXPOSED: 0.60
+    MALE_GENITALIA_EXPOSED: 0.60
+    ANUS_EXPOSED: 0.60
+    FEMALE_BREAST_EXPOSED: 0.60
+    BUTTOCKS_EXPOSED: 0.60
+  hold:                            # ambiguous exposed + underwear/lingerie -> admin review
+    FEMALE_GENITALIA_EXPOSED: 0.40
+    MALE_GENITALIA_EXPOSED: 0.40
+    ANUS_EXPOSED: 0.40
+    FEMALE_BREAST_EXPOSED: 0.40
+    BUTTOCKS_EXPOSED: 0.40
     FEMALE_GENITALIA_COVERED: 0.30
     ANUS_COVERED: 0.30
     FEMALE_BREAST_COVERED: 0.40

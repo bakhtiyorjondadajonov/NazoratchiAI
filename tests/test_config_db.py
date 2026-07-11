@@ -39,13 +39,31 @@ def test_config_materializes_from_env(tmp_path, monkeypatch):
     assert cfg.photos.max_photos == 5
 
 
-def test_config_rejects_class_in_both_tiers(tmp_path):
+def test_config_three_zone_overlap_rules(tmp_path):
+    """A class in both tiers is a 3-zone band and is valid ONLY when its
+    decline threshold sits strictly above its hold threshold."""
     import yaml
     raw = yaml.safe_load((REPO_ROOT / "config.example.yaml").read_text())
-    raw["nudenet"]["hold"]["FEMALE_GENITALIA_EXPOSED"] = 0.5  # also in decline
+    # the shipped template already overlaps the exposed classes (0.60 > 0.40)
+    cfg = load_config(REPO_ROOT / "config.example.yaml")
+    assert cfg.nudenet.decline["MALE_GENITALIA_EXPOSED"] > \
+        cfg.nudenet.hold["MALE_GENITALIA_EXPOSED"]
+
+    # hold >= decline would leave an empty hold zone → rejected
+    raw["nudenet"]["hold"]["FEMALE_GENITALIA_EXPOSED"] = 0.60
     bad = tmp_path / "bad.yaml"
     bad.write_text(yaml.safe_dump(raw))
-    with pytest.raises(Exception, match="both"):
+    with pytest.raises(Exception, match="above hold"):
+        load_config(bad)
+
+
+def test_config_rejects_actioned_and_ignored_class(tmp_path):
+    import yaml
+    raw = yaml.safe_load((REPO_ROOT / "config.example.yaml").read_text())
+    raw["nudenet"]["ignore"].append("MALE_GENITALIA_EXPOSED")
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(yaml.safe_dump(raw))
+    with pytest.raises(Exception, match="ignored"):
         load_config(bad)
 
 

@@ -25,21 +25,29 @@ from aiogram.types import (
 from nazoratchi.config import AppConfig
 from nazoratchi.db import Database
 from nazoratchi.screening.verdict import Signal, SignalKind, Verdict
+from nazoratchi.strings import label, t
 
 log = logging.getLogger(__name__)
 
-VERDICT_BADGE = {
-    Verdict.APPROVE: "✅ APPROVED",
-    Verdict.HOLD: "⏸ HELD FOR REVIEW",
-    Verdict.DECLINE: "⛔ DECLINED",
-}
+
+def user_link(user_id: int, first_name: str | None, last_name: str | None,
+              username: str | None) -> str:
+    """Tappable profile link for the reported account. A public @username link
+    always opens; the tg://user fallback resolves when the viewer's client can
+    look the user up — the <code>id</code> shown next to it stays copyable."""
+    name = html.escape(
+        (" ".join(filter(None, [first_name, last_name])) or str(user_id))[:64])
+    if username:
+        return f'<a href="https://t.me/{username}">{name}</a>'
+    return f'<a href="tg://user?id={user_id}">{name}</a>'
 
 
 def _kb(verdict: Verdict, source: str, screening_id: int, dry_run: bool,
-        action_taken: str = "") -> InlineKeyboardMarkup | None:
+        action_taken: str = "", lang: str = "en") -> InlineKeyboardMarkup | None:
     """Callback data format: gk:<action>:<screening_id> (well under 64 bytes)."""
-    def btn(text: str, action: str) -> InlineKeyboardButton:
-        return InlineKeyboardButton(text=text, callback_data=f"gk:{action}:{screening_id}")
+    def btn(key: str, action: str) -> InlineKeyboardButton:
+        return InlineKeyboardButton(text=t(lang, key),
+                                    callback_data=f"gk:{action}:{screening_id}")
 
     if verdict == Verdict.APPROVE and not dry_run:
         return None
@@ -47,51 +55,62 @@ def _kb(verdict: Verdict, source: str, screening_id: int, dry_run: bool,
         if dry_run or verdict == Verdict.HOLD:
             # request is still pending (dry-run never touched it) — both work
             return InlineKeyboardMarkup(inline_keyboard=[[
-                btn("✅ Approve", "approve"), btn("⛔ Decline", "decline"),
+                btn("btn.approve", "approve"), btn("btn.decline", "decline"),
             ]])
         if verdict == Verdict.DECLINE:
             return InlineKeyboardMarkup(inline_keyboard=[[
-                btn("🔓 Override: let user in", "override"),
+                btn("btn.override", "override"),
             ]])
     else:  # open-join path: there is no join request to approve/decline
         if action_taken in ("banned", "banned_pending"):
             return InlineKeyboardMarkup(inline_keyboard=[[
-                btn("🔓 Unban / let back in", "unban"),
+                btn("btn.unban", "unban"),
             ]])
         if dry_run or verdict in (Verdict.HOLD, Verdict.DECLINE):
             # user is still inside (dry-run, infra-failure hold, or ban failed)
             return InlineKeyboardMarkup(inline_keyboard=[[
-                btn("🔨 Ban", "kick"), btn("✅ Keep", "keep"),
+                btn("btn.ban", "kick"), btn("btn.keep", "keep"),
             ]])
     return None
 
 
 def _caption(screening, verdict: Verdict, signals: list[Signal],
-             notes: list[str], action_taken: str, dry_run: bool) -> str:
+             notes: list[str], action_taken: str, dry_run: bool,
+             lang: str = "en", chat_label=None) -> str:
     """Every line is a self-contained HTML fragment, and the caption is
     assembled line-by-line within the 1024-char budget — a blind slice could
     cut inside a tag or entity and make Telegram reject the whole message."""
     e = html.escape
-    name = " ".join(filter(None, [screening["first_name"], screening["last_name"]])) or "—"
-    username = f"@{screening['username']}" if screening["username"] else "no username"
+    link = user_link(screening["user_id"], screening["first_name"],
+                     screening["last_name"], screening["username"])
+    # the id sits on its own LTR line: an RTL display name in a mixed line
+    # visually scrambles everything after it
+    id_line = f"🆔 <code>{screening['user_id']}</code>" + (
+        f" · @{e(screening['username'])}" if screening["username"] else "")
+    chat = e(str(chat_label if chat_label is not None else screening["chat_id"])[:40])
     lines = [
-        f"{'🧪 DRY RUN — would be: ' if dry_run else ''}{VERDICT_BADGE[verdict]}",
-        f"<b>{e(name[:64])}</b> ({e(username)}, id <code>{screening['user_id']}</code>)",
-        f"chat: <code>{screening['chat_id']}</code> · via {screening['source']}"
-        f" · action: {e(action_taken)}",
+        f"{t(lang, 'report.dry_run') if dry_run else ''}"
+        f"{t(lang, f'verdict.{verdict.value}')}",
+        "",
+        f"👤 {link}",
+        id_line,
+        t(lang, "report.chat", chat=chat),
+        t(lang, "report.source", source=label(lang, "source", screening["source"])),
+        t(lang, "report.action", action=e(label(lang, "action", action_taken))),
     ]
     triggers = [s for s in signals if s.kind not in
                 (SignalKind.TEXT_SOFT, SignalKind.NO_PHOTO, SignalKind.GEMINI_UNAVAILABLE)]
     if triggers:
-        lines.append("<b>Triggered:</b>")
-        lines += [f"• {e(s.detail[:120])}" for s in triggers[:8]]
+        lines += ["", t(lang, "report.triggered")]
+        lines += [f" • {e(s.detail[:120])}" for s in triggers[:8]]
         if len(triggers) > 8:
-            lines.append(f"… and {len(triggers) - 8} more (see logs)")
+            lines.append(t(lang, "report.more_triggers", n=len(triggers) - 8))
     soft = [s for s in signals if s.kind == SignalKind.TEXT_SOFT]
     if soft:
-        lines.append("<i>Soft text signals:</i> " + e("; ".join(s.detail for s in soft[:5])[:200]))
+        lines += ["", t(lang, "report.soft")
+                  + e("; ".join(s.detail for s in soft[:5])[:200])]
     if screening["bio"]:
-        lines.append(f"<b>Bio:</b> <pre>{e(screening['bio'][:120])}</pre>")
+        lines += ["", f"{t(lang, 'report.bio')} <pre>{e(screening['bio'][:120])}</pre>"]
     for note in notes:
         lines.append(f"ℹ️ {e(note[:150])}")
 
@@ -113,21 +132,28 @@ async def report(
     from nazoratchi import routing  # local import: routing imports config, not notifier
 
     dest = routing.resolve_report_chat(db, cfg, screening["chat_id"])
+    lang = routing.resolve_language(db, cfg, screening["chat_id"])
     dry_run = cfg.mode.dry_run
     screening_id = screening["id"]
 
     # Clean auto-approvals get a one-line log note, not a full report.
     if verdict == Verdict.APPROVE and not dry_run:
-        name = " ".join(filter(None, [screening["first_name"], screening["last_name"]]))
-        badge = "✅ approved" if screening["source"] == "join_request" else "✅ kept (clean)"
+        link = user_link(screening["user_id"], screening["first_name"],
+                         screening["last_name"], screening["username"])
+        badge = t(lang, "report.approved_clean" if screening["source"] == "join_request"
+                  else "report.kept_clean")
         await _safe_send(bot, dest,
-                         f"{badge}: {html.escape(name or str(screening['user_id']))}"
-                         f" (id <code>{screening['user_id']}</code>)"
-                         + (f" — {html.escape('; '.join(notes))}" if notes else ""))
+                         f"{badge} — {link}\n"
+                         f"🆔 <code>{screening['user_id']}</code>"
+                         + (f" · ℹ️ {html.escape('; '.join(notes))}" if notes else ""))
         return
 
-    caption = _caption(screening, verdict, signals, notes, action_taken, dry_run)
-    keyboard = _kb(verdict, screening["source"], screening_id, dry_run, action_taken)
+    group = db.get_group(screening["chat_id"])
+    chat_label = group["title"] if group and group["title"] else None
+    caption = _caption(screening, verdict, signals, notes, action_taken, dry_run,
+                       lang, chat_label)
+    keyboard = _kb(verdict, screening["source"], screening_id, dry_run,
+                   action_taken, lang)
 
     try:
         media_ids, keyboard_msg_id = await _deliver(
@@ -140,9 +166,9 @@ async def report(
         log.warning("report to owner %s failed — rerouting to operator chat",
                     dest, exc_info=True)
         dest = cfg.bot.admin_chat_id
-        rerouted = (f"⚠️ owner unreachable for chat "
-                    f"<code>{screening['chat_id']}</code> — report rerouted:\n"
-                    + caption)[:1024]
+        # operator-facing → always English
+        rerouted = (t("en", "report.rerouted", chat_id=screening["chat_id"])
+                    + "\n" + caption)[:1024]
         media_ids, keyboard_msg_id = await _deliver(
             bot, dest, rerouted, keyboard, flagged_file_ids)
 

@@ -17,10 +17,11 @@ import logging
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
-from nazoratchi import actions, notifier
+from nazoratchi import actions, notifier, routing
 from nazoratchi.config import ConfigHolder
 from nazoratchi.db import Database
 from nazoratchi.logging_setup import log_decision
+from nazoratchi.strings import t
 
 log = logging.getLogger(__name__)
 
@@ -37,25 +38,26 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
             _, action, raw_id = cb.data.split(":", 2)
             screening_id = int(raw_id)
         except ValueError:
-            await cb.answer("Malformed action.", show_alert=True)
+            await cb.answer(t("en", "cb.malformed"), show_alert=True)
             return
         if action not in _VALID_ACTIONS:
-            await cb.answer("Malformed action.", show_alert=True)
+            await cb.answer(t("en", "cb.malformed"), show_alert=True)
             return
 
         screening = db.get_screening(screening_id)
         if screening is None:
-            await cb.answer("Unknown screening record.", show_alert=True)
+            await cb.answer(t("en", "cb.unknown"), show_alert=True)
             return
+        lang = routing.resolve_language(db, cfg, screening["chat_id"])
 
         if not await _is_authorized(cb, cfg, db, screening["chat_id"]):
             log.warning("unauthorized callback by %s: %s", cb.from_user.id, cb.data)
-            await cb.answer("Not authorized.", show_alert=True)
+            await cb.answer(t(lang, "cb.not_authorized"), show_alert=True)
             return
 
         # single-writer lock: first press flips state open→resolved
         if not db.resolve_admin_messages(screening_id):
-            await cb.answer("Already handled by another admin.")
+            await cb.answer(t(lang, "cb.already_handled"))
             return
 
         admin = cb.from_user
@@ -63,70 +65,69 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         chat_id, user_id = screening["chat_id"], screening["user_id"]
         bot = cb.bot
         outcome = ""
+        unban_ok = True
 
         try:
             if action == "approve":
                 ok = await actions.approve_request(bot, chat_id, user_id)
                 if ok:
                     db.allowlist_add(chat_id, user_id, admin_label, "admin approved after hold")
-                    outcome = f"✅ Approved by {admin_label} (allowlisted)"
+                    outcome = t(lang, "cb.approved", admin=admin_label)
                 else:
-                    outcome = (f"⚠️ Approve pressed by {admin_label}, but the request "
-                               f"no longer exists (withdrawn or handled elsewhere)")
+                    outcome = t(lang, "cb.approve_gone", admin=admin_label)
                 db.update_action(screening_id, "approved" if ok else "resolved_externally",
                                  admin_label)
 
             elif action == "decline":
                 ok = await actions.decline_request(bot, chat_id, user_id)
-                outcome = (f"⛔ Declined by {admin_label}" if ok else
-                           f"⚠️ Decline pressed by {admin_label}, but the request was already gone")
+                outcome = t(lang, "cb.declined" if ok else "cb.decline_gone",
+                            admin=admin_label)
                 db.update_action(screening_id, "declined" if ok else "resolved_externally",
                                  admin_label)
 
             elif action in ("override", "unban"):
                 unban_ok = await actions.unban(bot, chat_id, user_id)
                 if not unban_ok:
-                    outcome = (f"⚠️ {admin_label}: unban FAILED — check the bot's ban "
-                               f"rights in the group, then press again")
+                    outcome = t(lang, "cb.unban_failed", admin=admin_label)
                     db.update_action(screening_id, "override_failed", admin_label)
                 else:
                     db.allowlist_add(chat_id, user_id, admin_label, f"admin {action}")
                     invite = await actions.create_single_use_invite(bot, chat_id)
                     if invite is None:
-                        outcome = (f"⚠️ {admin_label}: unbanned + allowlisted, but the invite "
-                                   f"link could not be created — issue one manually")
+                        outcome = t(lang, "cb.no_invite", admin=admin_label)
                     else:
                         dm_ok = await actions.try_dm(
                             bot, screening["user_chat_id"],
-                            f"You have been approved. Join here: {invite}")
+                            t(lang, "cb.user_invite", invite=invite))
                         if dm_ok:
-                            outcome = (f"🔓 Override by {admin_label}: user unbanned, "
-                                       f"invite sent by DM")
+                            outcome = t(lang, "cb.override_dm", admin=admin_label)
                         else:
-                            outcome = (f"🔓 Override by {admin_label}: user unbanned + "
-                                       f"allowlisted. DM failed — forward this single-use "
-                                       f"link manually:\n{invite}")
+                            outcome = t(lang, "cb.override_manual",
+                                        admin=admin_label, invite=invite)
                     db.update_action(screening_id, "overridden", admin_label)
 
             elif action == "kick":  # semantics: permanent ban (restorable via /blocked)
-                ok = await actions.ban(bot, chat_id, user_id)
-                outcome = (f"🔨 Banned by {admin_label}" if ok else
-                           f"⚠️ Ban by {admin_label} FAILED — check bot rights")
+                # first-message case: the held message is almost certainly the
+                # ad — deleting it is part of the admin's Ban decision
+                revoke = True if screening["source"] == "first_message" else None
+                ok = await actions.ban(bot, chat_id, user_id, revoke_messages=revoke)
+                outcome = t(lang, "cb.banned" if ok else "cb.ban_failed",
+                            admin=admin_label)
                 db.update_action(screening_id, "banned" if ok else "ban_failed", admin_label)
 
             elif action == "keep":
                 db.allowlist_add(chat_id, user_id, admin_label, "admin kept flagged member")
-                outcome = f"✅ Kept by {admin_label} (allowlisted)"
+                outcome = t(lang, "cb.kept", admin=admin_label)
                 db.update_action(screening_id, "kept", admin_label)
 
         except Exception:
             log.exception("callback action %s failed for screening %d", action, screening_id)
             # give the buttons back so the admin can retry after a transient error
             db.reopen_admin_messages(screening_id)
-            await cb.answer(f"Action '{action}' failed — try again.", show_alert=True)
+            await cb.answer(t(lang, "cb.action_failed", action=action), show_alert=True)
             return
 
-        if action in ("override", "unban") and "FAILED" in outcome:
+        if action in ("override", "unban") and not unban_ok:
             # unban failed → reopen the lock and KEEP the buttons for a retry press
             db.reopen_admin_messages(screening_id)
             log_decision({

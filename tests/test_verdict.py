@@ -12,15 +12,21 @@ from nazoratchi.screening.verdict import (
 
 @pytest.fixture
 def nn_cfg() -> NudenetCfg:
+    # mirrors production: 3 zones for exposed classes (ignore / hold / decline)
     return NudenetCfg(
         decline={
-            "FEMALE_GENITALIA_EXPOSED": 0.25,
-            "MALE_GENITALIA_EXPOSED": 0.25,
-            "ANUS_EXPOSED": 0.25,
-            "FEMALE_BREAST_EXPOSED": 0.28,
-            "BUTTOCKS_EXPOSED": 0.28,
+            "FEMALE_GENITALIA_EXPOSED": 0.60,
+            "MALE_GENITALIA_EXPOSED": 0.60,
+            "ANUS_EXPOSED": 0.60,
+            "FEMALE_BREAST_EXPOSED": 0.60,
+            "BUTTOCKS_EXPOSED": 0.60,
         },
         hold={
+            "FEMALE_GENITALIA_EXPOSED": 0.40,
+            "MALE_GENITALIA_EXPOSED": 0.40,
+            "ANUS_EXPOSED": 0.40,
+            "FEMALE_BREAST_EXPOSED": 0.40,
+            "BUTTOCKS_EXPOSED": 0.40,
             "FEMALE_GENITALIA_COVERED": 0.30,
             "ANUS_COVERED": 0.30,
             "FEMALE_BREAST_COVERED": 0.40,
@@ -78,19 +84,42 @@ def test_infra_failure_holds_never_approves():
     assert decide([Signal(SignalKind.INFRA_ERROR, "")]) == Verdict.HOLD
 
 
-def test_hard_text_declines():
-    assert decide([Signal(SignalKind.TEXT_HARD, "")]) == Verdict.DECLINE
+def test_hard_text_holds_never_declines():
+    # owner's rule: words alone never auto-ban — the admin decides
+    assert decide([Signal(SignalKind.TEXT_HARD, "")]) == Verdict.HOLD
 
 
 # --- evaluate_detections ------------------------------------------------------
 
-def test_exposed_above_threshold(nn_cfg):
-    signals = evaluate_detections([det("FEMALE_BREAST_EXPOSED", 0.30)], 0, nn_cfg)
+def test_exposed_above_decline_threshold(nn_cfg):
+    signals = evaluate_detections([det("FEMALE_BREAST_EXPOSED", 0.70)], 0, nn_cfg)
     assert [s.kind for s in signals] == [SignalKind.EXPOSED_HIT]
 
 
 def test_exposed_below_threshold(nn_cfg):
     assert evaluate_detections([det("FEMALE_BREAST_EXPOSED", 0.20)], 0, nn_cfg) == []
+
+
+# --- the 3 zones for exposed classes ------------------------------------------
+
+def test_noise_zone_normal_portrait_passes(nn_cfg):
+    """Regression: a normal portrait got MALE_GENITALIA_EXPOSED=0.26 and was
+    auto-banned under the old 0.25 threshold. Below 0.40 = detector noise."""
+    dets = [det("MALE_GENITALIA_EXPOSED", 0.26), det("FACE_MALE", 0.90)]
+    assert evaluate_detections(dets, 0, nn_cfg) == []
+    assert decide([]) == Verdict.APPROVE
+
+
+def test_ambiguous_zone_holds_never_bans(nn_cfg):
+    signals = evaluate_detections([det("MALE_GENITALIA_EXPOSED", 0.45)], 0, nn_cfg)
+    assert [s.kind for s in signals] == [SignalKind.COVERED_HIT]  # hold tier
+    assert decide(signals) == Verdict.HOLD  # admin decides — no auto-ban
+
+
+def test_decline_zone_single_signal_no_hold_duplicate(nn_cfg):
+    signals = evaluate_detections([det("MALE_GENITALIA_EXPOSED", 0.70)], 0, nn_cfg)
+    assert [s.kind for s in signals] == [SignalKind.EXPOSED_HIT]  # exactly one
+    assert decide(signals) == Verdict.DECLINE
 
 
 def test_covered_above_threshold(nn_cfg):
@@ -139,6 +168,6 @@ def test_belly_combo_absent_when_covered_over_threshold(nn_cfg):
 
 
 def test_multiple_detections_take_best_score(nn_cfg):
-    dets = [det("FEMALE_BREAST_EXPOSED", 0.10), det("FEMALE_BREAST_EXPOSED", 0.35)]
+    dets = [det("FEMALE_BREAST_EXPOSED", 0.10), det("FEMALE_BREAST_EXPOSED", 0.45)]
     signals = evaluate_detections(dets, 0, nn_cfg)
-    assert signals and signals[0].score == 0.35
+    assert signals and signals[0].score == 0.45

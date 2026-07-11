@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS groups (
     enabled INTEGER NOT NULL DEFAULT 0,
     owner_user_id INTEGER,  -- the admin who ran /enable = report destination; NULL = operator chat
     is_seed INTEGER NOT NULL DEFAULT 0,
+    language TEXT NOT NULL DEFAULT 'en',
+    -- operator gate: 'none' = never requested, 'pending' = awaiting the
+    -- operator's decision, 'approved' / 'rejected' = decided
+    approval TEXT NOT NULL DEFAULT 'none',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -100,7 +104,7 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 """
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "5"
 
 
 class Database:
@@ -125,7 +129,9 @@ class Database:
 
         v1 → v2: rebuild screenings without the source CHECK (it blocked the
         'first_message' source). Standard SQLite 12-step table rebuild.
-        v2 → v3: add screenings.context_json (nullable → plain ALTER)."""
+        v2 → v3: add screenings.context_json (nullable → plain ALTER).
+        v3 → v4: add groups.language (constant default → plain ALTER).
+        v4 → v5: add groups.approval; running groups are grandfathered."""
         version = self._conn.execute(
             "SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
 
@@ -170,6 +176,32 @@ class Database:
                     "ALTER TABLE screenings ADD COLUMN context_json TEXT")
                 self._conn.execute(
                     "UPDATE meta SET value = '3' WHERE key = 'schema_version'")
+            version = "3"
+
+        if version == "3":
+            with self._conn:
+                # guard: on a legacy DB with no groups table at all, __init__'s
+                # executescript already created it WITH the language column
+                cols = [r[1] for r in self._conn.execute("PRAGMA table_info(groups)")]
+                if "language" not in cols:
+                    self._conn.execute(
+                        "ALTER TABLE groups ADD COLUMN language TEXT NOT NULL DEFAULT 'en'")
+                self._conn.execute(
+                    "UPDATE meta SET value = '4' WHERE key = 'schema_version'")
+            version = "4"
+
+        if version == "4":
+            with self._conn:
+                cols = [r[1] for r in self._conn.execute("PRAGMA table_info(groups)")]
+                if "approval" not in cols:
+                    self._conn.execute(
+                        "ALTER TABLE groups ADD COLUMN approval TEXT NOT NULL DEFAULT 'none'")
+                # groups already running predate the gate — grandfather them
+                self._conn.execute(
+                    "UPDATE groups SET approval = 'approved'"
+                    " WHERE enabled = 1 OR is_seed = 1")
+                self._conn.execute(
+                    "UPDATE meta SET value = '5' WHERE key = 'schema_version'")
 
     def close(self) -> None:
         self._conn.close()
@@ -360,18 +392,64 @@ class Database:
 
     def enable_group(self, chat_id: int, owner_user_id: int | None,
                      title: str | None = None, is_seed: bool = False) -> None:
+        """Enabling implies approval: it only happens post-gate, by an
+        operator, or for config seed groups."""
         now = time.time()
         with self._lock, self._conn:
             self._conn.execute(
                 "INSERT INTO groups (chat_id, title, enabled, owner_user_id, is_seed,"
-                " created_at, updated_at) VALUES (?, ?, 1, ?, ?, ?, ?)"
+                " approval, created_at, updated_at) VALUES (?, ?, 1, ?, ?, 'approved', ?, ?)"
                 " ON CONFLICT (chat_id) DO UPDATE SET"
                 " enabled = 1, owner_user_id = excluded.owner_user_id,"
-                " is_seed = excluded.is_seed,"
+                " is_seed = excluded.is_seed, approval = 'approved',"
                 " title = COALESCE(excluded.title, groups.title),"
                 " updated_at = excluded.updated_at",
                 (chat_id, title, owner_user_id, int(is_seed), now, now),
             )
+
+    def request_group(self, chat_id: int, owner_user_id: int,
+                      title: str | None = None) -> None:
+        """Record a pending /enable request awaiting the operator's decision."""
+        now = time.time()
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO groups (chat_id, title, enabled, owner_user_id, is_seed,"
+                " approval, created_at, updated_at) VALUES (?, ?, 0, ?, 0, 'pending', ?, ?)"
+                " ON CONFLICT (chat_id) DO UPDATE SET"
+                " approval = 'pending', owner_user_id = excluded.owner_user_id,"
+                " title = COALESCE(excluded.title, groups.title),"
+                " updated_at = excluded.updated_at",
+                (chat_id, title, owner_user_id, now, now),
+            )
+
+    def group_approval(self, chat_id: int) -> str:
+        """'none' (never requested) / 'pending' / 'approved' / 'rejected'."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT approval FROM groups WHERE chat_id = ?", (chat_id,)
+            ).fetchone()
+            return row["approval"] if row else "none"
+
+    def set_group_approval(self, chat_id: int, status: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute(
+                "UPDATE groups SET approval = ?, updated_at = ? WHERE chat_id = ?",
+                (status, time.time(), chat_id),
+            )
+
+    def set_group_language(self, chat_id: int, lang: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute(
+                "UPDATE groups SET language = ?, updated_at = ? WHERE chat_id = ?",
+                (lang, time.time(), chat_id),
+            )
+
+    def group_language(self, chat_id: int) -> str:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT language FROM groups WHERE chat_id = ?", (chat_id,)
+            ).fetchone()
+            return row["language"] if row else "en"
 
     def set_group_enabled(self, chat_id: int, enabled: bool) -> None:
         with self._lock, self._conn:
@@ -393,9 +471,12 @@ class Database:
             ).fetchall()
 
     def count_enabled_by_owner(self, user_id: int) -> int:
+        """Groups counting toward the per-owner cap: enabled ones plus
+        pending requests (so a stranger can't queue unlimited requests)."""
         with self._lock:
             return self._conn.execute(
-                "SELECT COUNT(*) FROM groups WHERE owner_user_id = ? AND enabled = 1",
+                "SELECT COUNT(*) FROM groups WHERE owner_user_id = ?"
+                " AND (enabled = 1 OR approval = 'pending')",
                 (user_id,),
             ).fetchone()[0]
 

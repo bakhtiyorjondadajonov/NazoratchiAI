@@ -141,13 +141,27 @@ class AppConfig(BaseModel):
     whitelist_users: list[int] = []
     db_path: str = "nazoratchi.db"
     logging: LoggingCfg = LoggingCfg()
+    # fallback UI language for groups without a stored choice (and pre-pick)
+    default_language: str = "en"
+
+    @field_validator("default_language")
+    @classmethod
+    def _known_language(cls, v: str) -> str:
+        from nazoratchi.strings import LANGS
+        if v not in LANGS:
+            raise ValueError(f"default_language must be one of {LANGS}")
+        return v
 
     @field_validator("nudenet")
     @classmethod
     def _no_overlap(cls, v: NudenetCfg) -> NudenetCfg:
-        overlap = set(v.decline) & set(v.hold)
-        if overlap:
-            raise ValueError(f"classes in both decline and hold tiers: {overlap}")
+        # a class may sit in BOTH tiers to form a 3-zone band (ignore below
+        # hold, hold below decline, auto-decline above) — but only if the
+        # decline threshold is strictly higher, or the hold zone would be empty
+        bad = {c for c in set(v.decline) & set(v.hold) if v.decline[c] <= v.hold[c]}
+        if bad:
+            raise ValueError(
+                f"decline threshold must be above hold threshold for: {bad}")
         overlap = (set(v.decline) | set(v.hold)) & set(v.ignore)
         if overlap:
             raise ValueError(f"classes both actioned and ignored: {overlap}")
