@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS screenings (
     first_name TEXT,
     last_name TEXT,
     username TEXT,
+    context_json TEXT,  -- first-message content payload (text / photo file id)
     status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'processing', 'resolved')),
     created_at REAL NOT NULL
 );
@@ -99,7 +100,7 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 """
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 
 class Database:
@@ -120,44 +121,55 @@ class Database:
             self._migrate()
 
     def _migrate(self) -> None:
-        """v1 → v2: rebuild screenings without the source CHECK (it blocked the
-        'first_message' source). Standard SQLite 12-step table rebuild."""
+        """Sequential migration chain — a v1 DB passes through every step.
+
+        v1 → v2: rebuild screenings without the source CHECK (it blocked the
+        'first_message' source). Standard SQLite 12-step table rebuild.
+        v2 → v3: add screenings.context_json (nullable → plain ALTER)."""
         version = self._conn.execute(
             "SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
-        if version != "1":
-            return
-        self._conn.execute("PRAGMA foreign_keys=OFF")
-        try:
+
+        if version == "1":
+            self._conn.execute("PRAGMA foreign_keys=OFF")
+            try:
+                with self._conn:
+                    self._conn.execute("""
+                        CREATE TABLE screenings_new (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            chat_id INTEGER NOT NULL,
+                            user_id INTEGER NOT NULL,
+                            source TEXT NOT NULL,
+                            user_chat_id INTEGER,
+                            bio TEXT,
+                            first_name TEXT,
+                            last_name TEXT,
+                            username TEXT,
+                            status TEXT NOT NULL DEFAULT 'queued'
+                                CHECK (status IN ('queued', 'processing', 'resolved')),
+                            created_at REAL NOT NULL
+                        )""")
+                    self._conn.execute("INSERT INTO screenings_new SELECT * FROM screenings")
+                    self._conn.execute("DROP TABLE screenings")
+                    self._conn.execute("ALTER TABLE screenings_new RENAME TO screenings")
+                    self._conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_screenings_status ON screenings (status)")
+                    self._conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_screenings_user ON screenings (chat_id, user_id)")
+                    self._conn.execute(
+                        "UPDATE meta SET value = '2' WHERE key = 'schema_version'")
+                violations = self._conn.execute("PRAGMA foreign_key_check").fetchall()
+                if violations:
+                    raise RuntimeError(f"migration left FK violations: {violations[:5]}")
+            finally:
+                self._conn.execute("PRAGMA foreign_keys=ON")
+            version = "2"
+
+        if version == "2":
             with self._conn:
-                self._conn.execute("""
-                    CREATE TABLE screenings_new (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        chat_id INTEGER NOT NULL,
-                        user_id INTEGER NOT NULL,
-                        source TEXT NOT NULL,
-                        user_chat_id INTEGER,
-                        bio TEXT,
-                        first_name TEXT,
-                        last_name TEXT,
-                        username TEXT,
-                        status TEXT NOT NULL DEFAULT 'queued'
-                            CHECK (status IN ('queued', 'processing', 'resolved')),
-                        created_at REAL NOT NULL
-                    )""")
-                self._conn.execute("INSERT INTO screenings_new SELECT * FROM screenings")
-                self._conn.execute("DROP TABLE screenings")
-                self._conn.execute("ALTER TABLE screenings_new RENAME TO screenings")
                 self._conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_screenings_status ON screenings (status)")
+                    "ALTER TABLE screenings ADD COLUMN context_json TEXT")
                 self._conn.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_screenings_user ON screenings (chat_id, user_id)")
-                self._conn.execute(
-                    "UPDATE meta SET value = '2' WHERE key = 'schema_version'")
-            violations = self._conn.execute("PRAGMA foreign_key_check").fetchall()
-            if violations:
-                raise RuntimeError(f"migration left FK violations: {violations[:5]}")
-        finally:
-            self._conn.execute("PRAGMA foreign_keys=ON")
+                    "UPDATE meta SET value = '3' WHERE key = 'schema_version'")
 
     def close(self) -> None:
         self._conn.close()
@@ -175,16 +187,19 @@ class Database:
         first_name: str | None,
         last_name: str | None,
         username: str | None,
+        context: dict[str, Any] | None = None,
     ) -> int:
         if source not in VALID_SOURCES:  # enum enforced in code since schema v2
             raise ValueError(f"invalid screening source: {source}")
         with self._lock, self._conn:
             cur = self._conn.execute(
                 "INSERT INTO screenings (chat_id, user_id, source, user_chat_id, bio,"
-                " first_name, last_name, username, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " first_name, last_name, username, context_json, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (chat_id, user_id, source, user_chat_id, bio, first_name, last_name,
-                 username, time.time()),
+                 username,
+                 json.dumps(context, ensure_ascii=False) if context else None,
+                 time.time()),
             )
             return cur.lastrowid
 

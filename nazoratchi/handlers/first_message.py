@@ -31,6 +31,23 @@ log = logging.getLogger(__name__)
 _LRU_CAP = 50_000
 
 
+def _extract_context(msg: Message) -> dict | None:
+    """Content payload for the one-time first-message check.
+
+    Text (incl. emoji-only) and photos (with optional caption) are analyzed;
+    every other type (audio, voice, video, sticker, document, …) is a one-shot
+    skip — profile rescan only, no waiting for a later text message."""
+    if msg.photo:
+        largest = max(msg.photo, key=lambda s: s.width * s.height)
+        return {"message_id": msg.message_id, "text": msg.caption,
+                "photo_file_id": largest.file_id,
+                "photo_unique_id": largest.file_unique_id}
+    if msg.text:
+        return {"message_id": msg.message_id, "text": msg.text,
+                "photo_file_id": None, "photo_unique_id": None}
+    return None
+
+
 def build_router(holder: ConfigHolder, db: Database, orchestrator: Orchestrator) -> Router:
     router = Router(name="first_message")
     seen: OrderedDict[tuple[int, int], None] = OrderedDict()
@@ -80,11 +97,13 @@ def build_router(holder: ConfigHolder, db: Database, orchestrator: Orchestrator)
 
         # the user has now 'met' the bot, so the bio is (usually) readable
         bio = await actions.fetch_user_bio(msg.bot, user.id)
+        # payload is always persisted (durability first); the config flag
+        # gates it at processing time
         screening_id = db.create_screening(
             chat_id=msg.chat.id, user_id=user.id, source="first_message",
             user_chat_id=user.id, bio=bio,
             first_name=user.first_name, last_name=user.last_name,
-            username=user.username,
+            username=user.username, context=_extract_context(msg),
         )
         db.set_first_message_screening(msg.chat.id, user.id, screening_id)
         _lru_add(key)

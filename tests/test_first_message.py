@@ -26,7 +26,8 @@ class StubHolder:
 
 
 def make_msg(chat_id=-100, user_id=42, is_bot=False, member_status="member",
-             bio="some bio"):
+             bio="some bio", text="hello there", photo=None, caption=None,
+             message_id=1):
     bot = SimpleNamespace(
         get_chat_member=AsyncMock(
             return_value=SimpleNamespace(status=member_status)),
@@ -35,7 +36,15 @@ def make_msg(chat_id=-100, user_id=42, is_bot=False, member_status="member",
     user = SimpleNamespace(id=user_id, is_bot=is_bot, first_name="Test",
                            last_name=None, username="test_user")
     return SimpleNamespace(chat=SimpleNamespace(id=chat_id, type="supergroup"),
-                           from_user=user, bot=bot)
+                           from_user=user, bot=bot, message_id=message_id,
+                           text=text, photo=photo, caption=caption)
+
+
+def photo_sizes():
+    return [SimpleNamespace(file_id="small", file_unique_id="u-small",
+                            width=90, height=90),
+            SimpleNamespace(file_id="big", file_unique_id="u-big",
+                            width=800, height=800)]
 
 
 @pytest.fixture
@@ -134,3 +143,46 @@ async def test_bio_fetch_failure_still_screens(env):
     await run(handler, msg)
     assert len(orch.enqueued) == 1
     assert db.get_screening(orch.enqueued[0])["bio"] is None
+
+
+# --- content payload extraction (plan §B: text/emoji/photo yes, rest no) ----
+
+import json
+
+
+@pytest.mark.asyncio
+async def test_text_message_payload_persisted(env):
+    db, orch, handler = env
+    await run(handler, make_msg(text="check my channel", message_id=77))
+    ctx = json.loads(db.get_screening(orch.enqueued[0])["context_json"])
+    assert ctx == {"message_id": 77, "text": "check my channel",
+                   "photo_file_id": None, "photo_unique_id": None}
+
+
+@pytest.mark.asyncio
+async def test_emoji_only_message_payload_persisted(env):
+    db, orch, handler = env
+    await run(handler, make_msg(text="🍑🔥"))
+    ctx = json.loads(db.get_screening(orch.enqueued[0])["context_json"])
+    assert ctx["text"] == "🍑🔥"
+
+
+@pytest.mark.asyncio
+async def test_photo_with_caption_payload_persisted(env):
+    db, orch, handler = env
+    await run(handler, make_msg(text=None, photo=photo_sizes(), caption="hi"))
+    ctx = json.loads(db.get_screening(orch.enqueued[0])["context_json"])
+    assert ctx["photo_file_id"] == "big"          # largest PhotoSize chosen
+    assert ctx["photo_unique_id"] == "u-big"
+    assert ctx["text"] == "hi"                     # caption rides as text
+
+
+@pytest.mark.asyncio
+async def test_audio_message_no_payload_profile_only(env):
+    db, orch, handler = env
+    await run(handler, make_msg(text=None))  # no text, no photo = other type
+    assert len(orch.enqueued) == 1                 # profile rescan still runs
+    assert db.get_screening(orch.enqueued[0])["context_json"] is None
+    # one shot: a later text message does NOT get content-checked
+    await run(handler, make_msg(text="porno"))
+    assert len(orch.enqueued) == 1

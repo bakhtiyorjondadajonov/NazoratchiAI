@@ -9,8 +9,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_repo_config_is_valid():
-    cfg = load_config(REPO_ROOT / "config.yaml")
+    # validate the TRACKED template (config.yaml is operator-owned/untracked)
+    cfg = load_config(REPO_ROOT / "config.example.yaml")
     assert cfg.mode.dry_run is True  # ships in dry-run until calibrated
+    assert cfg.mode.check_first_message_content is True
     assert cfg.photos.max_photos == 5
     assert cfg.tenancy.max_groups_per_owner == 20
     assert cfg.nudenet.decline and cfg.nudenet.hold
@@ -39,7 +41,7 @@ def test_config_materializes_from_env(tmp_path, monkeypatch):
 
 def test_config_rejects_class_in_both_tiers(tmp_path):
     import yaml
-    raw = yaml.safe_load((REPO_ROOT / "config.yaml").read_text())
+    raw = yaml.safe_load((REPO_ROOT / "config.example.yaml").read_text())
     raw["nudenet"]["hold"]["FEMALE_GENITALIA_EXPOSED"] = 0.5  # also in decline
     bad = tmp_path / "bad.yaml"
     bad.write_text(yaml.safe_dump(raw))

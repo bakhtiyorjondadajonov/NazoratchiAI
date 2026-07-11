@@ -31,6 +31,64 @@ class PhotoCheckOutcome:
     photos_scanned: int = 0
 
 
+async def check_message_photo(
+    bot: Bot,
+    file_id: str,
+    file_unique_id: str | None,
+    cfg: AppConfig,
+    runtime: NudeNetRuntime,
+) -> PhotoCheckOutcome:
+    """One-time analysis of a photo POSTED as a member's first message.
+
+    Same ensemble and thresholds as profile photos; signals are labeled
+    'message photo:' and stored with photo_index=-1 so the calibration data
+    can tell the origins apart. Infra failure (incl. message deleted before
+    the worker ran) → PHOTO_FETCH_FAILED, which never bans."""
+    outcome = PhotoCheckOutcome()
+    image = await _download(bot, file_id, cfg.photos.download_retries)
+    if image is None:
+        outcome.signals.append(Signal(
+            SignalKind.PHOTO_FETCH_FAILED,
+            "message photo: download failed after retries", photo_index=-1))
+        return outcome
+    result = await runtime.analyze(image)
+    if result.error:
+        outcome.signals.append(Signal(
+            SignalKind.PHOTO_FETCH_FAILED,
+            f"message photo: inference error: {result.error}", photo_index=-1))
+        return outcome
+    outcome.photos_scanned = 1
+
+    for det in result.detections:
+        outcome.detection_rows.append({
+            "photo_index": -1, "file_unique_id": file_unique_id,
+            "model": "detector", "class": det["class"],
+            "score": float(det["score"]), "box": det.get("box"),
+        })
+    if result.classifier_unsafe is not None:
+        outcome.detection_rows.append({
+            "photo_index": -1, "file_unique_id": file_unique_id,
+            "model": "classifier", "class": "unsafe",
+            "score": result.classifier_unsafe, "box": None,
+        })
+
+    photo_signals = evaluate_detections(result.detections, -1, cfg.nudenet)
+    if (result.classifier_unsafe is not None
+            and result.classifier_unsafe >= cfg.nudenet.classifier_unsafe_threshold):
+        photo_signals.append(Signal(
+            SignalKind.CLASSIFIER_UNSAFE,
+            f"v2 classifier unsafe={result.classifier_unsafe:.2f}",
+            score=result.classifier_unsafe, photo_index=-1,
+        ))
+    for s in photo_signals:
+        s.detail = f"message photo: {s.detail}"
+        s.extra["origin"] = "message"
+    if photo_signals:
+        outcome.flagged_file_ids.append(file_id)
+    outcome.signals.extend(photo_signals)
+    return outcome
+
+
 async def check_photos(
     bot: Bot,
     user_id: int,

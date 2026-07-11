@@ -48,6 +48,10 @@ class ModeCfg(BaseModel):
     # (the user_chat_id window closes once the request is processed).
     # Never includes detection reasons.
     notify_pending_user: bool = False
+    # Analyze the CONTENT of each member's first message (text/emoji through
+    # the keyword+Gemini pipeline, posted photos through NudeNet). Kill switch:
+    # payloads are still persisted when off, just not analyzed.
+    check_first_message_content: bool = True
 
 
 class QueueCfg(BaseModel):

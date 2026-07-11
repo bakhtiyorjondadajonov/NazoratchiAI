@@ -20,6 +20,7 @@ tenancy:
 mode:
   dry_run: true                    # start in dry-run: report verdicts, take no action. Flip after calibration.
   notify_pending_user: false       # DM requesters "being reviewed" before processing (no reasons revealed)
+  check_first_message_content: true # analyze first-message text/photos (kill switch; payload still persisted)
 
 queue:
   workers: 4

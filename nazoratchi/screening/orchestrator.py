@@ -12,6 +12,7 @@ feeds the same Signal types.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 
 from aiogram import Bot
@@ -22,7 +23,7 @@ from nazoratchi.db import Database
 from nazoratchi.logging_setup import log_decision
 from nazoratchi.screening.gemini_check import GeminiChecker
 from nazoratchi.screening.nudenet_runtime import NudeNetRuntime
-from nazoratchi.screening.photo_check import check_photos
+from nazoratchi.screening.photo_check import check_message_photo, check_photos
 from nazoratchi.screening.text_check import TextChecker, check_fields
 from nazoratchi.screening.verdict import Signal, SignalKind, Verdict, decide
 
@@ -119,6 +120,12 @@ class Orchestrator:
         notes: list[str] = []
         gemini_reason: str | None = None
 
+        # --- first-message content payload (persisted by the handler) ---
+        ctx = json.loads(row["context_json"]) if row["context_json"] else None
+        if ctx and not cfg.mode.check_first_message_content:
+            notes.append("message content check disabled by config")
+            ctx = None
+
         # --- text check (bio + names + username; red-team finding: porn bots
         # put the ad in the name at least as often as in the bio) ---
         fields = {
@@ -127,6 +134,8 @@ class Orchestrator:
             "last_name": row["last_name"],
             "username": row["username"],
         }
+        if ctx and ctx.get("text"):
+            fields["message"] = ctx["text"]  # content joins the same pipeline
         text_result = check_fields(self._get_text_checker(), fields)
         for hit in text_result.hard_hits:
             signals.append(Signal(SignalKind.TEXT_HARD, hit))
@@ -152,7 +161,7 @@ class Orchestrator:
                     "Gemini unavailable - text verdict is regex-only"))
                 notes.append("Gemini unavailable — text verdict is regex-only")
 
-        # --- photo check ---
+        # --- photo check (profile) ---
         photo_outcome = await check_photos(self.bot, row["user_id"], cfg, self.runtime)
         signals.extend(photo_outcome.signals)
         notes.extend(photo_outcome.notes)
@@ -162,6 +171,23 @@ class Orchestrator:
             notes.append("first-message re-screen — bio "
                          + ("read" if row["bio"] else "unreadable"))
         self.db.add_detections(screening_id, photo_outcome.detection_rows)
+
+        # --- message content: posted photo ---
+        flagged_file_ids = list(photo_outcome.flagged_file_ids)
+        photos_scanned = photo_outcome.photos_scanned
+        if ctx and ctx.get("photo_file_id"):
+            msg_outcome = await check_message_photo(
+                self.bot, ctx["photo_file_id"], ctx.get("photo_unique_id"),
+                cfg, self.runtime)
+            signals.extend(msg_outcome.signals)
+            notes.extend(msg_outcome.notes)
+            self.db.add_detections(screening_id, msg_outcome.detection_rows)
+            flagged_file_ids.extend(msg_outcome.flagged_file_ids)
+            photos_scanned += msg_outcome.photos_scanned
+        if ctx and ctx.get("text") and any(
+                h.startswith("message:") for h in
+                (*text_result.hard_hits, *text_result.soft_hits)):
+            notes.append(f"msg: {ctx['text'][:120]}")
 
         # --- verdict + action ---
         verdict = decide(signals)
@@ -185,7 +211,7 @@ class Orchestrator:
             "verdict": verdict.value, "action": action_taken,
             "dry_run": cfg.mode.dry_run,
             "signals": [s.to_dict() for s in signals],
-            "photos_scanned": photo_outcome.photos_scanned,
+            "photos_scanned": photos_scanned,
             "notes": notes,
         })
 
@@ -196,7 +222,7 @@ class Orchestrator:
             await notifier.report(
                 bot=self.bot, cfg=cfg, db=self.db,
                 screening=row, verdict=verdict, signals=signals,
-                flagged_file_ids=photo_outcome.flagged_file_ids,
+                flagged_file_ids=flagged_file_ids,
                 notes=notes, action_taken=action_taken,
             )
         except Exception:

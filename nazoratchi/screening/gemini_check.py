@@ -34,7 +34,7 @@ class GeminiOutcome(BaseModel):
 
 _SYSTEM_INSTRUCTION = """\
 You are a safety moderation classifier for a Telegram community. Your only task
-is to decide whether a user's profile text advertises or solicits adult/sexual
+is to decide whether a user's profile or first-message text advertises or solicits adult/sexual
 content (pornography, escort or intim services, adult channels, sexual hookups,
 OnlyFans-style content). This is abuse detection, not content generation.
 
