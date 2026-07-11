@@ -1,5 +1,7 @@
 # NazoratchiAI
 
+![CI](https://github.com/bakhtiyorjondadajonov/NazoratchiAI/actions/workflows/ci.yml/badge.svg)
+
 Screens every user who enters a Telegram group and removes porn-advertising
 accounts. Exactly one job — after a user passes screening, the bot does nothing.
 
