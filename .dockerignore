@@ -17,5 +17,6 @@ gatekeeper.db*
 .DS_Store
 PROMPT.md
 DEPLOY.md
+config.yaml
 docker-compose.yml
 deploy/

@@ -2,14 +2,11 @@
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
-
 COPY requirements.txt .
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
-
 COPY pyproject.toml README.md ./
 COPY nazoratchi ./nazoratchi
-
 RUN /opt/venv/bin/pip install --no-cache-dir --no-deps .
 
 # --- runtime -----------------------------------------------------------------
@@ -34,7 +31,6 @@ URLS = [
     ("https://api.github.com/repos/notAI-tech/NudeNet/releases/assets/31196404",
      {"User-Agent": "nazoratchi-build", "Accept": "application/octet-stream"}),
 ]
-
 for url, headers in URLS:
     try:
         req = urllib.request.Request(url, headers=headers)
@@ -42,15 +38,12 @@ for url, headers in URLS:
     except Exception as e:
         print(f"fetch failed: {url}: {e}", file=sys.stderr)
         continue
-
     digest = hashlib.sha256(data).hexdigest()
     if digest == EXPECTED:
         open("/app/models/classifier_model.onnx", "wb").write(data)
         print(f"classifier model OK from {url}")
         sys.exit(0)
-
     print(f"checksum mismatch from {url}: {digest}", file=sys.stderr)
-
 sys.exit("could not fetch a checksum-valid classifier model")
 EOF
 
@@ -63,14 +56,8 @@ RUN python -c "import cv2, onnxruntime"
 RUN useradd --uid 1000 --create-home app \
     && mkdir -p /app/data /app/logs \
     && chown -R app:app /app
-
 USER app
 WORKDIR /app
-
-# Copy the application config
-COPY --chown=app:app config.yaml .
-
-# Copy helper scripts
 COPY --chown=app:app scripts ./scripts
 
 ENTRYPOINT ["nazoratchi", "--config", "config.yaml"]
