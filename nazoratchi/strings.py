@@ -52,6 +52,49 @@ _EN = {
     "action.overridden": "let back in",
     "action.override_failed": "unban failed",
 
+    # evidence rendering: where a text hit was found
+    "field.bio": "bio",
+    "field.first_name": "first name",
+    "field.last_name": "last name",
+    "field.username": "username",
+    "field.message": "message",
+
+    # evidence rendering: human sentences per finding
+    "ev.keyword": "Banned word in the {field}: «{word}»",
+    "ev.obfuscated": "Hidden writing in the {field}: «{word}»",
+    "ev.emoji": "{field}: {emoji} emoji",
+    "ev.emoji_combo": "{field}: suggestive emoji combination {emojis}",
+    "ev.link": "Suspicious link in the {field} ({pattern})",
+    "ev.mention": "{field}: @mention together with other signals",
+    "ev.invisible": "{field}: {n} invisible characters",
+    "ev.msg_photo": "Photo in the message: {what} — {pct}%",
+    "ev.profile_photo": "Profile photo #{n}: {what} — {pct}%",
+    "ev.classifier": "AI photo check: unsafe content — {pct}%",
+    "ev.gemini": "AI text check: {reason}",
+    "ev.belly": "Photo: bare belly + {what} (bikini pattern)",
+    "ev.fetch_failed": "A photo could not be checked (technical failure)",
+    "ev.infra": "Technical error during screening",
+
+    # evidence rendering: NudeNet class names in human words
+    "class.FEMALE_GENITALIA_EXPOSED": "female genitalia (exposed)",
+    "class.MALE_GENITALIA_EXPOSED": "male genitalia (exposed)",
+    "class.ANUS_EXPOSED": "anus (exposed)",
+    "class.FEMALE_BREAST_EXPOSED": "breast (exposed)",
+    "class.BUTTOCKS_EXPOSED": "buttocks (exposed)",
+    "class.FEMALE_GENITALIA_COVERED": "female genitalia (covered)",
+    "class.ANUS_COVERED": "anus (covered)",
+    "class.FEMALE_BREAST_COVERED": "breast (covered)",
+    "class.BUTTOCKS_COVERED": "buttocks (covered)",
+    "class.MALE_BREAST_EXPOSED": "male chest (exposed)",
+    "class.BELLY_EXPOSED": "belly (exposed)",
+
+    # report footnotes (orchestrator appends tokens, notifier localizes)
+    "note.join_names_only": "Screened at join — bio not readable, names only",
+    "note.rescreen_bio_read": "First-message check (bio was read)",
+    "note.rescreen_bio_unreadable": "First-message check (bio not readable)",
+    "note.gemini_unavailable": "AI text check unavailable — word-list only",
+    "note.no_photo": "No visible profile photo — photos not screened",
+
     # report action buttons
     "btn.approve": "✅ Approve",
     "btn.decline": "⛔ Decline",
@@ -251,6 +294,47 @@ _UZ = {
     "action.kept": "qoldirildi",
     "action.overridden": "qayta kiritildi",
     "action.override_failed": "blokdan chiqarish amalga oshmadi",
+
+    "field.bio": "bio",
+    "field.first_name": "ism",
+    "field.last_name": "familiya",
+    "field.username": "username",
+    "field.message": "xabar",
+
+    "ev.keyword": "{field}da taqiqlangan soʻz: «{word}»",
+    "ev.obfuscated": "{field}da yashirin yozuv: «{word}»",
+    "ev.emoji": "{field}: {emoji} emoji",
+    "ev.emoji_combo": "{field}: shubhali emoji birikmasi {emojis}",
+    "ev.link": "{field}da shubhali havola ({pattern})",
+    "ev.mention": "{field}: @belgi boshqa belgilar bilan birga",
+    "ev.invisible": "{field}: {n} ta koʻrinmas belgi",
+    "ev.msg_photo": "Xabardagi rasm: {what} — {pct}%",
+    "ev.profile_photo": "Profil rasmi (#{n}): {what} — {pct}%",
+    "ev.classifier": "AI rasm tekshiruvi: nomaqbul kontent — {pct}%",
+    "ev.gemini": "AI matn tekshiruvi: {reason}",
+    "ev.belly": "Rasm: ochiq qorin + {what} (bikini belgisi)",
+    "ev.fetch_failed": "Bir rasmni tekshirib boʻlmadi (texnik nosozlik)",
+    "ev.infra": "Tekshiruv paytida texnik xatolik",
+
+    "class.FEMALE_GENITALIA_EXPOSED": "ayol jinsiy aʼzosi (ochiq)",
+    "class.MALE_GENITALIA_EXPOSED": "erkak jinsiy aʼzosi (ochiq)",
+    "class.ANUS_EXPOSED": "anal soha (ochiq)",
+    "class.FEMALE_BREAST_EXPOSED": "koʻkrak (ochiq)",
+    "class.BUTTOCKS_EXPOSED": "dumba (ochiq)",
+    "class.FEMALE_GENITALIA_COVERED": "ayol jinsiy aʼzosi (yopiq)",
+    "class.ANUS_COVERED": "anal soha (yopiq)",
+    "class.FEMALE_BREAST_COVERED": "koʻkrak (yopiq)",
+    "class.BUTTOCKS_COVERED": "dumba (yopiq)",
+    "class.MALE_BREAST_EXPOSED": "erkak koʻkragi (ochiq)",
+    "class.BELLY_EXPOSED": "qorin (ochiq)",
+
+    "note.join_names_only": ("Qoʻshilishda tekshirildi — bio oʻqilmadi,"
+                             " faqat ismlar"),
+    "note.rescreen_bio_read": "Birinchi xabar tekshiruvi (bio oʻqildi)",
+    "note.rescreen_bio_unreadable": "Birinchi xabar tekshiruvi (bio oʻqilmadi)",
+    "note.gemini_unavailable": ("AI matn tekshiruvi ishlamayapti — faqat"
+                                " soʻzlar roʻyxati"),
+    "note.no_photo": "Koʻrinadigan profil rasmi yoʻq — rasmlar tekshirilmadi",
 
     "btn.approve": "✅ Tasdiqlash",
     "btn.decline": "⛔ Rad etish",

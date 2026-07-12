@@ -105,7 +105,7 @@ async def check_photos(
     if not photos:
         outcome.signals.append(Signal(
             SignalKind.NO_PHOTO, "no visible profile photos (none or privacy-hidden)"))
-        outcome.notes.append("no visible profile photo - photo axis not screened")
+        outcome.notes.append("no_photo")  # token; notifier localizes
         return outcome
 
     for index, sizes in enumerate(photos):

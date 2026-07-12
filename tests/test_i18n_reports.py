@@ -70,6 +70,53 @@ def test_caption_dry_run_prefix_localized():
     assert "SINOV REJIMI" in caption and "KUTILMOQDA" in caption
 
 
+# -- evidence humanization -----------------------------------------------------
+
+def test_humanized_keyword_hit_both_languages():
+    s = Signal(SignalKind.TEXT_HARD, "message: keyword 'porno'")
+    assert notifier.humanize_signal("uz", s) == \
+        "xabarda taqiqlangan soʻz: «porno»"
+    assert notifier.humanize_signal("en", s) == \
+        "Banned word in the message: «porno»"
+
+
+def test_humanized_photo_hit_with_percent():
+    s = Signal(SignalKind.COVERED_HIT, "message photo: FEMALE_BREAST_COVERED=0.79",
+               score=0.79, photo_index=-1,
+               extra={"class": "FEMALE_BREAST_COVERED", "origin": "message"})
+    assert notifier.humanize_signal("uz", s) == \
+        "Xabardagi rasm: koʻkrak (yopiq) — 79%"
+    profile = Signal(SignalKind.EXPOSED_HIT, "FEMALE_BREAST_EXPOSED=0.81",
+                     score=0.81, photo_index=1,
+                     extra={"class": "FEMALE_BREAST_EXPOSED"})
+    assert notifier.humanize_signal("en", profile) == \
+        "Profile photo #2: breast (exposed) — 81%"
+
+
+def test_humanized_classifier_and_unknown_fall_back():
+    s = Signal(SignalKind.CLASSIFIER_UNSAFE, "v2 classifier unsafe=1.00",
+               score=1.0, extra={"origin": "message"})
+    assert notifier.humanize_signal("uz", s) == \
+        "AI rasm tekshiruvi: nomaqbul kontent — 100%"
+    # unknown class name → raw name shown inside the sentence
+    odd = Signal(SignalKind.COVERED_HIT, "x", score=0.5,
+                 extra={"class": "SOMETHING_NEW"})
+    assert "SOMETHING_NEW" in notifier.humanize_signal("uz", odd)
+    # unparseable detail → raw detail, escaped, never a crash
+    raw = Signal(SignalKind.TEXT_HARD, "weird & unexpected <shape>")
+    out = notifier.humanize_signal("uz", raw)
+    assert "&amp;" in out and "<shape>" not in out
+
+
+def test_notes_localized_with_raw_fallback():
+    assert notifier.humanize_note("uz", "rescreen_bio_read") == \
+        "Birinchi xabar tekshiruvi (bio oʻqildi)"
+    assert notifier.humanize_note("en", "no_photo") == \
+        "No visible profile photo — photos not screened"
+    assert notifier.humanize_note("uz", "msg: free text & note") == \
+        "msg: free text &amp; note"
+
+
 # -- keyboards ---------------------------------------------------------------
 
 def test_kb_labels_localized_callback_data_unchanged():

@@ -159,17 +159,17 @@ class Orchestrator:
                 signals.append(Signal(
                     SignalKind.GEMINI_UNAVAILABLE,
                     "Gemini unavailable - text verdict is regex-only"))
-                notes.append("Gemini unavailable — text verdict is regex-only")
+                notes.append("gemini_unavailable")  # token; notifier localizes
 
         # --- photo check (profile) ---
         photo_outcome = await check_photos(self.bot, row["user_id"], cfg, self.runtime)
         signals.extend(photo_outcome.signals)
         notes.extend(photo_outcome.notes)
         if row["source"] == "chat_member":
-            notes.append("screened at join — bio not readable, names only")
+            notes.append("join_names_only")  # token; notifier localizes
         elif row["source"] == "first_message":
-            notes.append("first-message re-screen — bio "
-                         + ("read" if row["bio"] else "unreadable"))
+            notes.append("rescreen_bio_read" if row["bio"]
+                         else "rescreen_bio_unreadable")  # tokens; localized
         self.db.add_detections(screening_id, photo_outcome.detection_rows)
 
         # --- message content: posted photo ---

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
@@ -37,6 +38,68 @@ def user_link(user_id: int, first_name: str | None, last_name: str | None,
     if username:
         return f'<a href="https://t.me/{username}">{name}</a>'
     return f'<a href="tg://user?id={user_id}">{name}</a>'
+
+
+def humanize_signal(lang: str, s: Signal) -> str:
+    """One finding as a localized human sentence with a percentage. Renders
+    from the signal's structure; ANY parsing problem falls back to the raw
+    detail — a report must never lose evidence over formatting."""
+    try:
+        extra = s.extra or {}
+        pct = round(s.score * 100) if s.score is not None else None
+        if (s.kind in (SignalKind.EXPOSED_HIT, SignalKind.COVERED_HIT)
+                and extra.get("class") and pct is not None):
+            what = label(lang, "class", extra["class"])
+            if extra.get("origin") == "message":
+                return t(lang, "ev.msg_photo", what=what, pct=pct)
+            return t(lang, "ev.profile_photo",
+                     n=(s.photo_index or 0) + 1, what=what, pct=pct)
+        if s.kind == SignalKind.BELLY_COMBO_HIT and extra.get("class"):
+            return t(lang, "ev.belly", what=label(lang, "class", extra["class"]))
+        if s.kind == SignalKind.CLASSIFIER_UNSAFE and pct is not None:
+            return t(lang, "ev.classifier", pct=pct)
+        if s.kind in (SignalKind.GEMINI_ADULT, SignalKind.GEMINI_BLOCKED):
+            reason = s.detail.split(":", 1)[1].strip() if ":" in s.detail else s.detail
+            return t(lang, "ev.gemini", reason=html.escape(reason[:100]))
+        if s.kind in (SignalKind.TEXT_HARD, SignalKind.TEXT_SOFT):
+            return _humanize_text_hit(lang, s.detail)
+        if s.kind == SignalKind.PHOTO_FETCH_FAILED:
+            return t(lang, "ev.fetch_failed")
+        if s.kind == SignalKind.INFRA_ERROR:
+            return t(lang, "ev.infra")
+    except Exception:  # noqa: BLE001 — display-only path, never break a report
+        pass
+    return html.escape(s.detail[:120])
+
+
+def _humanize_text_hit(lang: str, detail: str) -> str:
+    """Text-checker details follow '{field}: <pattern>' — see text_check.py."""
+    fld, sep, rest = detail.partition(": ")
+    if not sep:
+        raise ValueError(detail)
+    field = label(lang, "field", fld)
+    for pattern, key, arg in (
+        (r"keyword '(.+)'$", "ev.keyword", "word"),
+        (r"obfuscated '(.+)'$", "ev.obfuscated", "word"),
+        (r"emoji combo (.+)$", "ev.emoji_combo", "emojis"),
+        (r"emoji (.+)$", "ev.emoji", "emoji"),
+        (r"link pattern '(.+)'$", "ev.link", "pattern"),
+        (r"(\d+) invisible chars$", "ev.invisible", "n"),
+    ):
+        m = re.match(pattern, rest)
+        if m:
+            return t(lang, key, field=field,
+                     **{arg: html.escape(m.group(1)[:60])})
+    if rest == "mention + signal":
+        return t(lang, "ev.mention", field=field)
+    raise ValueError(detail)  # unknown shape → caller falls back to raw
+
+
+def humanize_note(lang: str, note: str) -> str:
+    """Notes arrive as tokens (e.g. 'rescreen_bio_read'); legacy/free-text
+    notes pass through escaped."""
+    resolved = label(lang, "note", note)
+    return resolved if resolved != note else html.escape(note[:150])
 
 
 def _kb(verdict: Verdict, source: str, screening_id: int, dry_run: bool,
@@ -99,17 +162,17 @@ def _caption(screening, verdict: Verdict, signals: list[Signal],
                 (SignalKind.TEXT_SOFT, SignalKind.NO_PHOTO, SignalKind.GEMINI_UNAVAILABLE)]
     if triggers:
         lines += ["", t(lang, "report.triggered")]
-        lines += [f" • {e(s.detail[:120])}" for s in triggers[:8]]
+        lines += [f" • {humanize_signal(lang, s)}" for s in triggers[:8]]
         if len(triggers) > 8:
             lines.append(t(lang, "report.more_triggers", n=len(triggers) - 8))
     soft = [s for s in signals if s.kind == SignalKind.TEXT_SOFT]
     if soft:
         lines += ["", t(lang, "report.soft")
-                  + e("; ".join(s.detail for s in soft[:5])[:200])]
+                  + "; ".join(humanize_signal(lang, s) for s in soft[:4])]
     if screening["bio"]:
         lines += ["", f"{t(lang, 'report.bio')} <pre>{e(screening['bio'][:120])}</pre>"]
     for note in notes:
-        lines.append(f"ℹ️ {e(note[:150])}")
+        lines.append(f"ℹ️ {humanize_note(lang, note)}")
 
     out: list[str] = []
     used = 0
@@ -142,7 +205,8 @@ async def report(
         await _safe_send(bot, dest,
                          f"{badge} — {link}\n"
                          f"🆔 <code>{screening['user_id']}</code>"
-                         + (f" · ℹ️ {html.escape('; '.join(notes))}" if notes else ""))
+                         + (f" · ℹ️ {'; '.join(humanize_note(lang, n) for n in notes)}"
+                            if notes else ""))
         return
 
     group = db.get_group(screening["chat_id"])
