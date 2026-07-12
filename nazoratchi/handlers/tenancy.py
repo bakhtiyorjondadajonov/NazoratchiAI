@@ -164,7 +164,7 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         reply = t(lang, "enable.on")
         problems = await routing.check_group_rights(msg.bot, msg.chat.id, lang)
         if problems:
-            reply += "\n⚠️ " + "\n⚠️ ".join(problems)
+            reply += "\n\n⚠️ " + "\n⚠️ ".join(problems)
         await msg.reply(reply)
 
     @router.message(Command("disable"), F.chat.type.in_({"group", "supergroup"}))

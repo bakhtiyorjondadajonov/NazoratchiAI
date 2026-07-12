@@ -98,18 +98,29 @@ _EN = {
                      " once it's approved."),
 
     # /enable, /disable
-    "enable.cap": "You already run the bot in {n} groups — that's the limit.",
-    "enable.dm_probe": ("NazoratchiAI enabled for “{title}”.\n"
-                        "Screening reports for that group will arrive here. "
-                        "Use /blocked and /held to review cases."),
-    "enable.no_dm": ("I can't message you privately. Open @{bot}, press Start,"
-                     " then run /enable here again."),
-    "enable.on": "✅ NazoratchiAI is ON. New members are screened automatically.",
-    "enable.off": "NazoratchiAI is OFF for this group.",
+    "enable.cap": "⚠️ You already run the bot in <b>{n}</b> groups — that's the limit.",
+    "enable.dm_probe": ("✅ <b>NazoratchiAI is now protecting “{title}”</b>\n"
+                        "\n"
+                        "Screening reports for that group will arrive here,"
+                        " in this chat.\n"
+                        "\n"
+                        "<b>Useful commands:</b>\n"
+                        " • /blocked — blocked users\n"
+                        " • /held — cases awaiting your decision\n"
+                        " • /language — change language"),
+    "enable.no_dm": ("⚠️ <b>I can't message you privately</b>\n"
+                     "\n"
+                     "1. Open @{bot}\n"
+                     "2. Press <b>Start</b>\n"
+                     "3. Come back and run /enable again"),
+    "enable.on": ("✅ <b>NazoratchiAI is ON</b>\n"
+                  "New members are screened automatically."),
+    "enable.off": "⏸ NazoratchiAI is OFF for this group.",
 
     # operator approval gate for new groups
-    "req.sent": ("📨 Your request was sent to the bot owner."
-                 " You'll get a message here once it's decided."),
+    "req.sent": ("📨 <b>Request sent to the bot owner</b>\n"
+                 "\n"
+                 "You'll get a message here once it's decided."),
     "req.pending_already": ("⏳ Your request is already waiting for the bot"
                             " owner's decision."),
     "req.rejected": "❌ Your request to use this bot was declined by the owner.",
@@ -119,9 +130,10 @@ _EN = {
                          "👤 {requester} · <code>{requester_id}</code>"),
     "req.operator_approved": "✅ Approved — “{title}” is now screened.",
     "req.operator_rejected": "❌ Rejected — “{title}”.",
-    "req.approved_user": ("✅ Your group “{title}” was approved — NazoratchiAI"
-                          " is now active. New members are screened"
-                          " automatically."),
+    "req.approved_user": ("✅ <b>“{title}” was approved!</b>\n"
+                          "\n"
+                          "NazoratchiAI is now active — new members are"
+                          " screened automatically."),
     "req.rejected_user": ("❌ Your request for “{title}” was declined by the"
                           " bot owner."),
     "req.already_decided": "Already decided.",
@@ -139,11 +151,13 @@ _EN = {
     "main.problems_in": "⚠️ NazoratchiAI problems in “{title}”:",
 
     # language selection (chooser text is bilingual by design — shown pre-pick)
-    "start.welcome": ("👋 Welcome to NazoratchiAI! I protect Telegram groups"
-                      " from adult-content and spam accounts.\n"
-                      "👋 NazoratchiAI'ga xush kelibsiz! Men Telegram"
-                      " guruhlarini kattalar kontenti va spam akkauntlardan"
-                      " himoya qilaman."),
+    "start.welcome": ("👋 <b>Welcome to NazoratchiAI!</b>\n"
+                      "I protect Telegram groups from adult-content and spam"
+                      " accounts.\n"
+                      "\n"
+                      "👋 <b>NazoratchiAI'ga xush kelibsiz!</b>\n"
+                      "Men Telegram guruhlarini kattalar kontenti va spam"
+                      " akkauntlardan himoya qilaman."),
     "lang.choose": "🌐 Choose language / Tilni tanlang:",
     "lang.set": "✅ Language: {language}",
     "lang.set_groups": "✅ Language: {language} — applied to {n} group(s)",
@@ -281,20 +295,30 @@ _UZ = {
     "user.pending": ("Guruhga qoʻshilish soʻrovingiz koʻrib chiqilmoqda."
                      " Tasdiqlangach guruhga qabul qilinasiz."),
 
-    "enable.cap": "Bot sizda allaqachon {n} ta guruhda ishlayapti — bu chegara.",
-    "enable.dm_probe": ("NazoratchiAI “{title}” guruhi uchun yoqildi.\n"
-                        "Oʻsha guruh boʻyicha tekshiruv hisobotlari shu yerga"
-                        " keladi. Holatlarni koʻrish uchun /blocked va /held"
-                        " buyruqlaridan foydalaning."),
-    "enable.no_dm": ("Sizga shaxsiy xabar yubora olmayman. @{bot} botini oching,"
-                     " Start tugmasini bosing, soʻng bu yerda /enable buyrugʻini"
-                     " qayta ishga tushiring."),
-    "enable.on": ("✅ NazoratchiAI YONIQ. Yangi aʼzolar avtomatik ravishda"
-                  " tekshiriladi."),
-    "enable.off": "NazoratchiAI bu guruh uchun OʻCHIRILGAN.",
+    "enable.cap": ("⚠️ Bot sizda allaqachon <b>{n}</b> ta guruhda ishlayapti"
+                   " — bu chegara."),
+    "enable.dm_probe": ("✅ <b>NazoratchiAI endi “{title}” guruhini himoya"
+                        " qilmoqda</b>\n"
+                        "\n"
+                        "Oʻsha guruh boʻyicha tekshiruv hisobotlari shu yerga,"
+                        " shu chatga keladi.\n"
+                        "\n"
+                        "<b>Foydali buyruqlar:</b>\n"
+                        " • /blocked — bloklanganlar roʻyxati\n"
+                        " • /held — qaroringizni kutayotgan holatlar\n"
+                        " • /language — tilni almashtirish"),
+    "enable.no_dm": ("⚠️ <b>Sizga shaxsiy xabar yubora olmayman</b>\n"
+                     "\n"
+                     "1. @{bot} botini oching\n"
+                     "2. <b>Start</b> tugmasini bosing\n"
+                     "3. Qaytib kelib /enable buyrugʻini qayta yuboring"),
+    "enable.on": ("✅ <b>NazoratchiAI YONIQ</b>\n"
+                  "Yangi aʼzolar avtomatik ravishda tekshiriladi."),
+    "enable.off": "⏸ NazoratchiAI bu guruh uchun OʻCHIRILGAN.",
 
-    "req.sent": ("📨 Soʻrovingiz bot egasiga yuborildi. Qaror qabul qilingach"
-                 " shu yerga xabar keladi."),
+    "req.sent": ("📨 <b>Soʻrovingiz bot egasiga yuborildi</b>\n"
+                 "\n"
+                 "Qaror qabul qilingach shu yerga xabar keladi."),
     "req.pending_already": ("⏳ Soʻrovingiz allaqachon bot egasining qarorini"
                             " kutmoqda."),
     "req.rejected": ("❌ Bu botdan foydalanish soʻrovingiz bot egasi tomonidan"
@@ -305,8 +329,10 @@ _UZ = {
                          "👤 {requester} · <code>{requester_id}</code>"),
     "req.operator_approved": "✅ Approved — “{title}” is now screened.",
     "req.operator_rejected": "❌ Rejected — “{title}”.",
-    "req.approved_user": ("✅ “{title}” guruhingiz tasdiqlandi — NazoratchiAI"
-                          " endi faol. Yangi aʼzolar avtomatik tekshiriladi."),
+    "req.approved_user": ("✅ <b>“{title}” tasdiqlandi!</b>\n"
+                          "\n"
+                          "NazoratchiAI endi faol — yangi aʼzolar avtomatik"
+                          " tekshiriladi."),
     "req.rejected_user": ("❌ “{title}” uchun soʻrovingiz bot egasi tomonidan"
                           " rad etildi."),
     "req.already_decided": "Allaqachon hal qilingan.",
@@ -322,11 +348,13 @@ _UZ = {
     "rights.cannot_inspect": "{chat} chatini tekshirib boʻlmadi: {error}",
     "main.problems_in": "⚠️ “{title}” guruhida NazoratchiAI muammolari:",
 
-    "start.welcome": ("👋 Welcome to NazoratchiAI! I protect Telegram groups"
-                      " from adult-content and spam accounts.\n"
-                      "👋 NazoratchiAI'ga xush kelibsiz! Men Telegram"
-                      " guruhlarini kattalar kontenti va spam akkauntlardan"
-                      " himoya qilaman."),
+    "start.welcome": ("👋 <b>Welcome to NazoratchiAI!</b>\n"
+                      "I protect Telegram groups from adult-content and spam"
+                      " accounts.\n"
+                      "\n"
+                      "👋 <b>NazoratchiAI'ga xush kelibsiz!</b>\n"
+                      "Men Telegram guruhlarini kattalar kontenti va spam"
+                      " akkauntlardan himoya qilaman."),
     "lang.choose": "🌐 Choose language / Tilni tanlang:",
     "lang.set": "✅ Til: {language}",
     "lang.set_groups": "✅ Til: {language} — {n} ta guruhga qoʻllandi",
