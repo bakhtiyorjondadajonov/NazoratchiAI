@@ -22,7 +22,11 @@ from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 
 from nazoratchi import menu, notifier, routing
-from nazoratchi.config import ConfigHolder, materialize_config_from_env
+from nazoratchi.config import (
+    ConfigHolder,
+    materialize_config_from_env,
+    preflight_config,
+)
 from nazoratchi.db import Database
 from nazoratchi.handlers import (
     callbacks,
@@ -203,6 +207,10 @@ def main() -> None:
     args = parser.parse_args()
     # PaaS deployments (Railway etc.) deliver the config via env var
     materialize_config_from_env(args.config)
+    problem = preflight_config(args.config)
+    if problem:
+        print(problem, file=sys.stderr)
+        sys.exit(1)
     try:
         sys.exit(asyncio.run(run(args.config)))
     except KeyboardInterrupt:

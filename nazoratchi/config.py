@@ -184,6 +184,22 @@ def materialize_config_from_env(path: str | Path,
     return True
 
 
+def preflight_config(path: str | Path) -> str | None:
+    """One clear, actionable line when the config file is absent — a PaaS
+    crash log must name exactly which env vars the container received
+    instead of a bare FileNotFoundError traceback. Returns None when OK."""
+    if Path(path).exists():
+        return None
+    env_check = " ".join(
+        f"{var}={'set' if os.environ.get(var, '').strip() else 'MISSING'}"
+        for var in ("GK_CONFIG_YAML", "GK_BOT_TOKEN", "GK_GEMINI_KEY"))
+    return (f"CONFIG ERROR: '{path}' not found and $GK_CONFIG_YAML is not set.\n"
+            f"env check: {env_check}\n"
+            f"Fix: set the variables on the Railway service AND press 'Apply"
+            f" changes' (saved variables stay staged until applied), or"
+            f" provide a config file. See DEPLOY.md -> Railway.")
+
+
 def load_config(path: str | Path) -> AppConfig:
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)

@@ -79,6 +79,19 @@ roughly **15–19 days** — a proving ground, not a permanent home.
      deploy, so the decisions audit log must live on the volume. (App logs
      also stream to Railway's log view.)
 5. Deploy → open the logs → expect `🟢 NazoratchiAI online`.
+
+   **Troubleshooting a crash loop:**
+   - `CONFIG ERROR: 'config.yaml' not found` or `GK_BOT_TOKEN is not set` →
+     the variables are saved but **not applied**: Railway stages variable
+     changes — press the **"Apply changes" / "Deploy"** button at the top of
+     the project canvas. "Redeploy" on an old deployment and git-push
+     auto-deploys keep the old (empty) environment until you apply.
+   - Add the multi-line `GK_CONFIG_YAML` through **New Variable** (name +
+     value fields), NOT the Raw Editor — the raw `NAME=value` format mangles
+     multi-line values.
+   - `unable to open database file` → the volume mounted root-owned while the
+     image runs as uid 1000: add the service variable `RAILWAY_RUN_UID=0`
+     and redeploy.
 6. Config changes: edit `GK_CONFIG_YAML` in the dashboard and redeploy
    (the env-delivered config is re-written at every boot; SIGHUP reload
    applies only to hand-edited files on a VM).

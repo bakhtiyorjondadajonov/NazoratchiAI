@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from nazoratchi.config import load_config, materialize_config_from_env
+from nazoratchi.config import (
+    load_config,
+    materialize_config_from_env,
+    preflight_config,
+)
 from nazoratchi.db import Database
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -37,6 +41,22 @@ def test_config_materializes_from_env(tmp_path, monkeypatch):
     assert materialize_config_from_env(target) is True
     cfg = load_config(target)  # parses to a valid AppConfig
     assert cfg.photos.max_photos == 5
+
+
+def test_preflight_reports_missing_config_and_env(tmp_path, monkeypatch):
+    """A PaaS crash log must say exactly which env vars the container got."""
+    monkeypatch.delenv("GK_CONFIG_YAML", raising=False)
+    monkeypatch.setenv("GK_BOT_TOKEN", "x")
+    monkeypatch.delenv("GK_GEMINI_KEY", raising=False)
+    msg = preflight_config(tmp_path / "nope.yaml")
+    assert "CONFIG ERROR" in msg
+    assert "GK_CONFIG_YAML=MISSING" in msg
+    assert "GK_BOT_TOKEN=set" in msg
+    assert "GK_GEMINI_KEY=MISSING" in msg
+    # file present → no complaint
+    ok = tmp_path / "ok.yaml"
+    ok.write_text("x: 1")
+    assert preflight_config(ok) is None
 
 
 def test_config_three_zone_overlap_rules(tmp_path):
