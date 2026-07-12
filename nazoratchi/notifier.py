@@ -1,9 +1,10 @@
-"""Admin reports: evidence photo(s) + verdict caption + action buttons.
+"""Admin reports: verdict caption + action buttons. TEXT-ONLY by policy —
+flagged (often explicit) photos are never forwarded to the admin's DM; the
+report describes the evidence and the clickable profile link lets the admin
+look for themselves.
 
 Telegram constraints honored here:
-- media groups cannot carry inline keyboards → album first, then a separate
-  keyboard message;
-- captions are ≤1024 chars after entity parsing;
+- captions are kept ≤1024 chars, assembled line-by-line;
 - all user-supplied text is HTML-escaped; if Telegram still rejects the
   entities the send is retried without parse_mode (a report must never be
   silently lost).
@@ -16,11 +17,7 @@ import logging
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    InputMediaPhoto,
-)
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from nazoratchi.config import AppConfig
 from nazoratchi.db import Database
@@ -156,8 +153,7 @@ async def report(
                    action_taken, lang)
 
     try:
-        media_ids, keyboard_msg_id = await _deliver(
-            bot, dest, caption, keyboard, flagged_file_ids)
+        keyboard_msg_id = await _deliver(bot, dest, caption, keyboard)
     except Exception:
         if dest == cfg.bot.admin_chat_id:
             raise
@@ -169,36 +165,23 @@ async def report(
         # operator-facing → always English
         rerouted = (t("en", "report.rerouted", chat_id=screening["chat_id"])
                     + "\n" + caption)[:1024]
-        media_ids, keyboard_msg_id = await _deliver(
-            bot, dest, rerouted, keyboard, flagged_file_ids)
+        keyboard_msg_id = await _deliver(bot, dest, rerouted, keyboard)
 
     if keyboard_msg_id is not None:
-        db.save_admin_messages(screening_id, dest, media_ids, keyboard_msg_id)
+        db.save_admin_messages(screening_id, dest, [], keyboard_msg_id)
 
 
-async def _deliver(bot: Bot, dest: int, caption: str, keyboard,
-                   flagged_file_ids: list[str]) -> tuple[list[int], int | None]:
-    media_ids: list[int] = []
+async def _deliver(bot: Bot, dest: int, caption: str, keyboard) -> int | None:
+    """Text-only by policy — the flagged photos themselves are never sent."""
     try:
-        if len(flagged_file_ids) == 1:
-            msg = await bot.send_photo(dest, photo=flagged_file_ids[0],
-                                       caption=caption, reply_markup=keyboard)
-            return [msg.message_id], msg.message_id
-        if flagged_file_ids:
-            album = [InputMediaPhoto(media=fid) for fid in flagged_file_ids[:10]]
-            msgs = await bot.send_media_group(dest, media=album)
-            media_ids = [m.message_id for m in msgs]
-            msg = await bot.send_message(dest, caption, reply_markup=keyboard,
-                                         reply_to_message_id=media_ids[0])
-            return media_ids, msg.message_id
         msg = await bot.send_message(dest, caption, reply_markup=keyboard)
-        return [], msg.message_id
+        return msg.message_id
     except TelegramBadRequest:
         # entity/markup rejection — never lose the report over formatting
         log.warning("report send failed with entities; retrying plain", exc_info=True)
         msg = await bot.send_message(dest, _strip_html(caption),
                                      reply_markup=keyboard, parse_mode=None)
-        return media_ids, msg.message_id
+        return msg.message_id
 
 
 async def send_alert(bot: Bot, cfg: AppConfig, text: str) -> None:

@@ -83,6 +83,35 @@ def test_kb_labels_localized_callback_data_unchanged():
 # -- report() end-to-end -----------------------------------------------------
 
 @pytest.mark.asyncio
+async def test_reports_are_text_only_never_forward_flagged_photos(tmp_path):
+    """Policy: explicit evidence photos must NEVER land in the admin's DM —
+    the report text + clickable profile link replace them."""
+    db = Database(tmp_path / "p.db")
+    cfg = make_config()
+    bot = SimpleNamespace(
+        send_message=AsyncMock(return_value=SimpleNamespace(message_id=10)),
+        send_photo=AsyncMock(),
+        send_media_group=AsyncMock(),
+    )
+    sid = db.create_screening(chat_id=-100, user_id=42, source="chat_member",
+                              user_chat_id=42, bio=None, first_name="X",
+                              last_name=None, username=None)
+    await notifier.report(
+        bot=bot, cfg=cfg, db=db, screening=db.get_screening(sid),
+        verdict=Verdict.DECLINE,
+        signals=[Signal(SignalKind.EXPOSED_HIT, "FEMALE_BREAST_EXPOSED=0.81")],
+        flagged_file_ids=["explicit1", "explicit2"], notes=[],
+        action_taken="banned")
+    bot.send_photo.assert_not_awaited()
+    bot.send_media_group.assert_not_awaited()
+    bot.send_message.assert_awaited_once()
+    text = bot.send_message.call_args[0][1]
+    assert "FEMALE_BREAST_EXPOSED" in text  # evidence described, not shown
+    assert 'tg://user?id=42' in text        # profile link for manual checking
+    db.close()
+
+
+@pytest.mark.asyncio
 async def test_report_uses_group_language_and_linked_one_liner(tmp_path):
     db = Database(tmp_path / "i.db")
     cfg = make_config()
