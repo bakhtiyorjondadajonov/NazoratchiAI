@@ -79,7 +79,7 @@ def make_cb(data, chat_type="private", user_id=42):
 
 
 @pytest.mark.asyncio
-async def test_enable_sends_language_chooser_to_dm(tmp_path):
+async def test_enable_without_pref_sends_chooser_to_dm(tmp_path):
     db = Database(tmp_path / "t.db")
     (enable, *_), _ = handlers(db)
     # approved group (past the operator gate) — its admin re-runs /enable
@@ -94,7 +94,40 @@ async def test_enable_sends_language_chooser_to_dm(tmp_path):
     assert "Tilni tanlang" in chooser.args[1]
     kb = chooser.kwargs["reply_markup"]
     assert [b.callback_data for b in kb.inline_keyboard[0]] == \
-        ["lang:en:-100", "lang:uz:-100"]
+        ["lang:en:all", "lang:uz:all"]
+    db.close()
+
+
+@pytest.mark.asyncio
+async def test_enable_with_pref_inherits_it_no_chooser(tmp_path):
+    """An owner who already picked at /start gets the group in their
+    language immediately — no chooser DM."""
+    db = Database(tmp_path / "t.db")
+    (enable, *_), _ = handlers(db)
+    db.enable_group(-100, owner_user_id=42, title="Test Group")
+    db.set_user_language(42, "uz")
+    msg = make_msg()
+    await enable(msg)
+    assert db.group_language(-100) == "uz"
+    # only the DM probe — no chooser
+    assert len(msg.bot.send_message.call_args_list) == 1
+    db.close()
+
+
+@pytest.mark.asyncio
+async def test_start_greets_and_offers_languages(tmp_path):
+    db = Database(tmp_path / "t.db")
+    router = tenancy.build_router(StubHolder(make_config()), db)
+    cmd_start = router.message.handlers[4].callback
+    msg = SimpleNamespace(chat=SimpleNamespace(id=42, type="private"),
+                          from_user=SimpleNamespace(id=42), answer=AsyncMock())
+    await cmd_start(msg)
+    welcome = msg.answer.call_args_list[0].args[0]
+    assert "Welcome" in welcome and "xush kelibsiz" in welcome
+    chooser = msg.answer.call_args_list[1]
+    assert [b.callback_data for b in
+            chooser.kwargs["reply_markup"].inline_keyboard[0]] == \
+        ["lang:en:all", "lang:uz:all"]
     db.close()
 
 
@@ -104,13 +137,32 @@ async def test_lang_callback_sets_language_and_sends_onboarding(tmp_path):
     db.enable_group(-100, owner_user_id=42, title="G")
     _, lang_cb = handlers(db)
 
-    cb = make_cb("lang:uz:-100")
+    cb = make_cb("lang:uz:all")
     await lang_cb(cb)
-    assert db.group_language(-100) == "uz"
+    assert db.user_language(42) == "uz"      # personal pick stored
+    assert db.group_language(-100) == "uz"   # owned group switched
     cb.message.edit_text.assert_awaited_once()
-    assert "til" in cb.message.edit_text.call_args.args[0]  # uz confirmation
+    assert "Til" in cb.message.edit_text.call_args.args[0]  # uz confirmation
     onboarding = cb.bot.send_message.call_args.args[1]
     assert "NazoratchiAI qanday ishlaydi" in onboarding
+
+    # second pick: guide NOT sent again, groups switch back
+    cb2 = make_cb("lang:en:all")
+    await lang_cb(cb2)
+    assert db.group_language(-100) == "en"
+    cb2.bot.send_message.assert_not_awaited()
+    db.close()
+
+
+@pytest.mark.asyncio
+async def test_lang_pick_with_no_groups_stores_pref(tmp_path):
+    """/start case: a pick before owning any group must work."""
+    db = Database(tmp_path / "t.db")
+    _, lang_cb = handlers(db)
+    cb = make_cb("lang:uz:all", user_id=777)
+    await lang_cb(cb)
+    assert db.user_language(777) == "uz"
+    assert "Til" in cb.message.edit_text.call_args.args[0]
     db.close()
 
 
@@ -129,24 +181,27 @@ async def test_lang_callback_group_pick_skips_onboarding(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_lang_callback_rejects_unauthorized_and_malformed(tmp_path):
+async def test_lang_callback_scoping_and_malformed(tmp_path):
     db = Database(tmp_path / "t.db")
     db.enable_group(-100, owner_user_id=42, title="G")
     _, lang_cb = handlers(db)
 
-    # stranger: not operator, not owner, not group admin
-    cb = make_cb("lang:uz:-100", user_id=777)
-    cb.bot.get_chat_member = AsyncMock(
-        return_value=SimpleNamespace(status="member"))
+    # a stranger's pick sets THEIR preference, never someone else's group
+    cb = make_cb("lang:uz:all", user_id=777)
     await lang_cb(cb)
-    assert db.group_language(-100) == "en"  # unchanged
+    assert db.user_language(777) == "uz"
+    assert db.group_language(-100) == "en"  # not their group — unchanged
+
+    # unknown language code is rejected
+    cb = make_cb("lang:xx:all")
+    await lang_cb(cb)
+    assert db.user_language(42) is None
     assert cb.answer.call_args.kwargs.get("show_alert") is True
 
-    # malformed / unknown language
-    for data in ("lang:xx:-100", "lang:uz:notanint"):
-        cb = make_cb(data)
-        await lang_cb(cb)
-        assert db.group_language(-100) == "en"
+    # legacy chat-bound data from old chooser messages still works
+    cb = make_cb("lang:uz:-100")
+    await lang_cb(cb)
+    assert db.user_language(42) == "uz" and db.group_language(-100) == "uz"
     db.close()
 
 
@@ -216,9 +271,8 @@ async def test_blocked_empty_text_follows_the_chat_language(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_language_command_in_dm_lists_owned_groups(tmp_path):
+async def test_language_command_in_dm_shows_single_chooser(tmp_path):
     db = Database(tmp_path / "t.db")
-    db.enable_group(-100, owner_user_id=42, title="Guruh A")
     router = tenancy.build_router(StubHolder(make_config()), db)
     cmd_language_private = router.message.handlers[3].callback
 
@@ -226,13 +280,23 @@ async def test_language_command_in_dm_lists_owned_groups(tmp_path):
         chat=SimpleNamespace(id=42, type="private"),
         from_user=SimpleNamespace(id=42), answer=AsyncMock())
     await cmd_language_private(msg)
-    assert "Guruh A" in msg.answer.call_args.args[0]
+    msg.answer.assert_awaited_once()
+    assert "Tilni tanlang" in msg.answer.call_args.args[0]
     assert msg.answer.call_args.kwargs["reply_markup"] is not None
+    db.close()
 
-    # no owned groups → pointer to /enable
-    msg2 = SimpleNamespace(
-        chat=SimpleNamespace(id=7, type="private"),
-        from_user=SimpleNamespace(id=7), answer=AsyncMock())
-    await cmd_language_private(msg2)
-    assert "/enable" in msg2.answer.call_args.args[0]
+
+@pytest.mark.asyncio
+async def test_language_command_in_group_redirects_to_dm(tmp_path):
+    db = Database(tmp_path / "t.db")
+    db.enable_group(-100, owner_user_id=42, title="G")
+    router = tenancy.build_router(StubHolder(make_config()), db)
+    cmd_language_group = router.message.handlers[2].callback
+
+    msg = make_msg()
+    await cmd_language_group(msg)
+    # chooser went to the DM, short note stayed in the group
+    dm = msg.bot.send_message.call_args
+    assert dm.args[0] == 42 and "Tilni tanlang" in dm.args[1]
+    assert "📬" in msg.reply.call_args.args[0]
     db.close()

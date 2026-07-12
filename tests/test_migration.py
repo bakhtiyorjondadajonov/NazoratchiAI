@@ -1,6 +1,7 @@
 """Sequential schema migrations: v1 → v2 (drop source CHECK), v2 → v3
 (screenings.context_json), v3 → v4 (groups.language), v4 → v5
-(groups.approval, running groups grandfathered) — no data loss."""
+(groups.approval, running groups grandfathered), v5 → v6 (user_prefs) —
+no data loss."""
 
 import sqlite3
 
@@ -51,7 +52,7 @@ def test_v1_database_migrates_through_full_chain(tmp_path):
     db = Database(path)
     raw = sqlite3.connect(path)
     version = raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
-    assert version == "5"  # v1 → v2 → v3 → v4 → v5 chain
+    assert version == "6"  # full v1 → v6 chain
     assert "context_json" in _columns(raw, "screenings")
     assert "language" in _columns(raw, "groups")
     assert "approval" in _columns(raw, "groups")
@@ -72,7 +73,7 @@ def test_v1_database_migrates_through_full_chain(tmp_path):
     db.close()
 
 
-def test_v2_database_migrates_to_v5(tmp_path):
+def test_v2_database_migrates_to_v6(tmp_path):
     """A DB created by an old release (v2: no source CHECK, no context_json)
     gets both columns via plain ALTERs."""
     path = tmp_path / "v2.db"
@@ -86,7 +87,7 @@ def test_v2_database_migrates_to_v5(tmp_path):
 
     db = Database(path)
     raw = sqlite3.connect(path)
-    assert raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "5"
+    assert raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "6"
     assert "context_json" in _columns(raw, "screenings")
     assert "language" in _columns(raw, "groups")
     assert "approval" in _columns(raw, "groups")
@@ -95,7 +96,7 @@ def test_v2_database_migrates_to_v5(tmp_path):
     db.close()
 
 
-def test_v3_database_migrates_to_v5(tmp_path):
+def test_v3_database_migrates_to_v6(tmp_path):
     """A DB from the previous release (v3: groups WITHOUT language) gets the
     column via ALTER; existing enabled groups default to 'en' and are
     grandfathered as approved by the v5 step."""
@@ -125,7 +126,7 @@ def test_v3_database_migrates_to_v5(tmp_path):
 
     db = Database(path)
     raw = sqlite3.connect(path)
-    assert raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "5"
+    assert raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "6"
     assert "language" in _columns(raw, "groups")
     row = raw.execute(
         "SELECT title, enabled, owner_user_id, language, approval FROM groups"
@@ -136,7 +137,7 @@ def test_v3_database_migrates_to_v5(tmp_path):
     db.close()
 
 
-def test_v4_database_migrates_to_v5(tmp_path):
+def test_v4_database_migrates_to_v6(tmp_path):
     """v4 (groups WITH language, no approval): enabled/seed groups become
     'approved'; a disabled leftover row stays unapproved ('none')."""
     path = tmp_path / "v4.db"
@@ -163,14 +164,15 @@ def test_v4_database_migrates_to_v5(tmp_path):
     db.close()
 
 
-def test_fresh_database_is_v5_and_validates_source(tmp_path):
+def test_fresh_database_is_v6_and_validates_source(tmp_path):
     import pytest
     path = tmp_path / "new.db"
     db = Database(path)
     raw = sqlite3.connect(path)
-    assert raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "5"
+    assert raw.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0] == "6"
     assert "context_json" in _columns(raw, "screenings")
     assert "approval" in _columns(raw, "groups")
+    assert "language" in _columns(raw, "user_prefs")
     raw.close()
     with pytest.raises(ValueError, match="invalid screening source"):
         db.create_screening(chat_id=-1, user_id=1, source="bogus",

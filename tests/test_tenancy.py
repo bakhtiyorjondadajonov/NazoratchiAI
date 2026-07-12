@@ -176,7 +176,7 @@ async def test_request_approve_enables_and_onboards(req_env):
     dms = cb.bot.send_message.call_args_list
     assert dms[0].args[0] == 42 and dms[1].args[0] == 42
     kb = dms[1].kwargs["reply_markup"]
-    assert kb.inline_keyboard[0][0].callback_data == "lang:en:-100"
+    assert kb.inline_keyboard[0][0].callback_data == "lang:en:all"
 
 
 @pytest.mark.asyncio

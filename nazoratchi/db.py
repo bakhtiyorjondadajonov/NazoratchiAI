@@ -98,13 +98,19 @@ CREATE TABLE IF NOT EXISTS admin_messages (
     state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'resolved'))
 );
 
+CREATE TABLE IF NOT EXISTS user_prefs (
+    user_id INTEGER PRIMARY KEY,
+    language TEXT NOT NULL DEFAULT 'en',
+    updated_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
 """
 
-SCHEMA_VERSION = "5"
+SCHEMA_VERSION = "6"
 
 
 class Database:
@@ -131,7 +137,8 @@ class Database:
         'first_message' source). Standard SQLite 12-step table rebuild.
         v2 → v3: add screenings.context_json (nullable → plain ALTER).
         v3 → v4: add groups.language (constant default → plain ALTER).
-        v4 → v5: add groups.approval; running groups are grandfathered."""
+        v4 → v5: add groups.approval; running groups are grandfathered.
+        v5 → v6: add user_prefs (owner's language pick at /start)."""
         version = self._conn.execute(
             "SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
 
@@ -202,6 +209,14 @@ class Database:
                     " WHERE enabled = 1 OR is_seed = 1")
                 self._conn.execute(
                     "UPDATE meta SET value = '5' WHERE key = 'schema_version'")
+            version = "5"
+
+        if version == "5":
+            with self._conn:
+                # table itself comes from executescript(SCHEMA) in __init__;
+                # this step only records the version bump
+                self._conn.execute(
+                    "UPDATE meta SET value = '6' WHERE key = 'schema_version'")
 
     def close(self) -> None:
         self._conn.close()
@@ -487,6 +502,26 @@ class Database:
                 (user_id,),
             ).fetchall()
             return [r["chat_id"] for r in rows]
+
+    # -- user preferences ------------------------------------------------------
+
+    def set_user_language(self, user_id: int, lang: str) -> None:
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO user_prefs (user_id, language, updated_at)"
+                " VALUES (?, ?, ?)"
+                " ON CONFLICT (user_id) DO UPDATE SET"
+                " language = excluded.language, updated_at = excluded.updated_at",
+                (user_id, lang, time.time()),
+            )
+
+    def user_language(self, user_id: int) -> str | None:
+        """The user's picked language, or None if they never picked."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT language FROM user_prefs WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return row["language"] if row else None
 
     # -- detections ----------------------------------------------------------
 

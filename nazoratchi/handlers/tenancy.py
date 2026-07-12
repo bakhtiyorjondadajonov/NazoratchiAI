@@ -26,7 +26,6 @@ from aiogram.types import (
 from nazoratchi import menu, routing
 from nazoratchi.config import ConfigHolder
 from nazoratchi.db import Database
-from nazoratchi.handlers.callbacks import _is_authorized
 from nazoratchi.logging_setup import log_decision
 from nazoratchi.notifier import user_link
 from nazoratchi.strings import LANGS, t
@@ -34,11 +33,13 @@ from nazoratchi.strings import LANGS, t
 log = logging.getLogger(__name__)
 
 
-def _lang_kb(chat_id: int) -> InlineKeyboardMarkup:
-    """Callback data format: lang:<lang>:<chat_id> — distinct from gk:*."""
+def _lang_kb() -> InlineKeyboardMarkup:
+    """Callback data: lang:<lang>:all — one pick applies to the presser's
+    preference AND every group they own (legacy lang:<lang>:<chat_id> data
+    from old messages is parsed the same way)."""
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🇬🇧 English", callback_data=f"lang:en:{chat_id}"),
-        InlineKeyboardButton(text="🇺🇿 Oʻzbekcha", callback_data=f"lang:uz:{chat_id}"),
+        InlineKeyboardButton(text="🇬🇧 English", callback_data="lang:en:all"),
+        InlineKeyboardButton(text="🇺🇿 Oʻzbekcha", callback_data="lang:uz:all"),
     ]])
 
 
@@ -67,6 +68,16 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         except Exception:
             return False
 
+    def _owner_lang(user_id: int, chat_id: int | None = None) -> str:
+        """Language for owner-facing texts: the person's own pick first,
+        then the group's stored language, then the configured default."""
+        lang = db.user_language(user_id)
+        if lang:
+            return lang
+        if chat_id is not None:
+            return db.group_language(chat_id)
+        return holder.current.default_language
+
     @router.message(Command("enable"), F.chat.type.in_({"group", "supergroup"}))
     async def cmd_enable(msg: Message) -> None:
         cfg = holder.current
@@ -74,8 +85,7 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
             return
         sender = msg.from_user
         is_operator = sender.id in cfg.bot.admin_user_ids
-        # re-enable keeps the previously chosen language; fresh groups → default
-        lang = db.group_language(msg.chat.id)
+        lang = _owner_lang(sender.id, msg.chat.id)
         title = html.escape(str(msg.chat.title or msg.chat.id))
 
         if not is_operator:
@@ -138,11 +148,18 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         log_decision({"event": "group_enabled", "chat_id": msg.chat.id,
                       "title": msg.chat.title, "owner": sender.id})
 
-        # language chooser lands in the owner's DM (probe above just succeeded)
-        with contextlib.suppress(Exception):
-            await msg.bot.send_message(
-                sender.id, t(lang, "lang.choose", title=title),
-                reply_markup=_lang_kb(msg.chat.id))
+        pref = db.user_language(sender.id)
+        if pref:
+            # the owner already picked at /start — the group inherits it
+            db.set_group_language(msg.chat.id, pref)
+            routing.invalidate(msg.chat.id)
+            with contextlib.suppress(Exception):
+                await menu.set_group_menu(msg.bot, msg.chat.id, pref)
+        else:
+            # never picked → chooser in the owner's DM (probe just succeeded)
+            with contextlib.suppress(Exception):
+                await msg.bot.send_message(sender.id, t("en", "lang.choose"),
+                                           reply_markup=_lang_kb())
 
         reply = t(lang, "enable.on")
         problems = await routing.check_group_rights(msg.bot, msg.chat.id, lang)
@@ -158,68 +175,71 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
         routing.invalidate(msg.chat.id)
         log_decision({"event": "group_disabled", "chat_id": msg.chat.id,
                       "by": msg.from_user.id})
-        await msg.reply(t(db.group_language(msg.chat.id), "enable.off"))
+        await msg.reply(t(_owner_lang(msg.from_user.id, msg.chat.id), "enable.off"))
 
     @router.message(Command("language"), F.chat.type.in_({"group", "supergroup"}))
     async def cmd_language_group(msg: Message) -> None:
+        """The chooser lives in the DM — a pick applies to ALL owned groups."""
         if not await _sender_is_group_admin(msg):
             return
-        title = html.escape(str(msg.chat.title or msg.chat.id))
-        await msg.reply(t(db.group_language(msg.chat.id), "lang.choose", title=title),
-                        reply_markup=_lang_kb(msg.chat.id))
+        lang = _owner_lang(msg.from_user.id, msg.chat.id)
+        try:
+            await msg.bot.send_message(msg.from_user.id, t("en", "lang.choose"),
+                                       reply_markup=_lang_kb())
+        except Exception:
+            me = await msg.bot.me()
+            await msg.reply(t(lang, "enable.no_dm", bot=me.username))
+            return
+        await msg.reply(t(lang, "lang.dm_sent"))
 
     @router.message(Command("language"), F.chat.type == "private")
     async def cmd_language_private(msg: Message) -> None:
-        if msg.from_user is None:
-            return
-        owned = db.groups_owned_by(msg.from_user.id)
-        if not owned:
-            await msg.answer(t(holder.current.default_language, "lang.no_groups"))
-            return
-        for chat_id in owned:  # one chooser per owned group, labeled by title
-            group = db.get_group(chat_id)
-            title = html.escape(str(group["title"] or chat_id))
-            await msg.answer(t(group["language"], "lang.choose", title=title),
-                             reply_markup=_lang_kb(chat_id))
+        await msg.answer(t("en", "lang.choose"), reply_markup=_lang_kb())
 
     @router.callback_query(F.data.startswith("lang:"))
     async def on_language_pick(cb: CallbackQuery) -> None:
-        cfg = holder.current
         try:
-            _, lang, raw_id = cb.data.split(":", 2)
-            chat_id = int(raw_id)
+            _, lang, _target = cb.data.split(":", 2)  # target ignored (legacy)
         except ValueError:
             await cb.answer(t("en", "cb.malformed"), show_alert=True)
             return
         if lang not in LANGS:
             await cb.answer(t("en", "cb.malformed"), show_alert=True)
             return
-        if not await _is_authorized(cb, cfg, db, chat_id):
-            await cb.answer(t(lang, "cb.not_authorized"), show_alert=True)
-            return
 
-        db.set_group_language(chat_id, lang)
-        routing.invalidate(chat_id)
-        log_decision({"event": "group_language", "chat_id": chat_id,
-                      "language": lang, "by": cb.from_user.id})
+        first_pick = db.user_language(cb.from_user.id) is None
+        db.set_user_language(cb.from_user.id, lang)
+        owned = db.groups_owned_by(cb.from_user.id)
+        for chat_id in owned:
+            db.set_group_language(chat_id, lang)
+            routing.invalidate(chat_id)
+            with contextlib.suppress(Exception):
+                await menu.set_group_menu(cb.bot, chat_id, lang)
+        log_decision({"event": "language_pick", "by": cb.from_user.id,
+                      "language": lang, "groups": len(owned)})
 
-        # per-chat menu overrides follow the pick (cosmetic — best effort)
+        if owned:
+            confirmation = t(lang, "lang.set_groups",
+                             language=t(lang, "lang.name"), n=len(owned))
+        else:
+            confirmation = t(lang, "lang.set", language=t(lang, "lang.name"))
         with contextlib.suppress(Exception):
-            await menu.set_group_menu(cb.bot, chat_id, lang)
+            await cb.message.edit_text(confirmation)
+        # the how-to guide goes to DMs only, on the very first pick
         if cb.message.chat.type == "private":
             with contextlib.suppress(Exception):
                 await menu.set_private_menu(cb.bot, cb.message.chat.id, lang)
-
-        group = db.get_group(chat_id)
-        title = html.escape(str(group["title"] if group and group["title"] else chat_id))
-        confirmation = t(lang, "lang.set", title=title, language=t(lang, "lang.name"))
-        with contextlib.suppress(Exception):
-            await cb.message.edit_text(confirmation)
-        # the guide goes to DMs only — a group /language pick just confirms
-        if cb.message.chat.type == "private":
-            with contextlib.suppress(Exception):
-                await cb.bot.send_message(cb.message.chat.id, t(lang, "onboarding"))
+            if first_pick:
+                with contextlib.suppress(Exception):
+                    await cb.bot.send_message(cb.message.chat.id,
+                                              t(lang, "onboarding"))
         await cb.answer(t(lang, "lang.name"))
+
+    @router.message(Command("start"), F.chat.type == "private")
+    async def cmd_start(msg: Message) -> None:
+        """First contact: bilingual welcome + the language chooser."""
+        await msg.answer(t("en", "start.welcome"))
+        await msg.answer(t("en", "lang.choose"), reply_markup=_lang_kb())
 
     @router.callback_query(F.data.startswith("req:"))
     async def on_group_request(cb: CallbackQuery) -> None:
@@ -242,19 +262,25 @@ def build_router(holder: ConfigHolder, db: Database) -> Router:
             await cb.answer(t("en", "req.already_decided"))  # double-press guard
             return
         owner = group["owner_user_id"]
-        lang = group["language"]
+        pref = db.user_language(owner) if owner else None
+        lang = pref or group["language"]
         title = html.escape(str(group["title"] or chat_id))
 
         if decision == "approve":
             db.enable_group(chat_id, owner_user_id=owner, title=group["title"])
+            if pref:  # the requester already picked — group inherits it
+                db.set_group_language(chat_id, pref)
+                with contextlib.suppress(Exception):
+                    await menu.set_group_menu(cb.bot, chat_id, pref)
             routing.invalidate(chat_id)
             with contextlib.suppress(Exception):
                 await cb.message.edit_text(t("en", "req.operator_approved", title=title))
-            # tell the requester + start the normal onboarding (language pick)
+            # tell the requester (+ the chooser only if they never picked)
             with contextlib.suppress(Exception):
                 await cb.bot.send_message(owner, t(lang, "req.approved_user", title=title))
-                await cb.bot.send_message(owner, t(lang, "lang.choose", title=title),
-                                          reply_markup=_lang_kb(chat_id))
+                if not pref:
+                    await cb.bot.send_message(owner, t("en", "lang.choose"),
+                                              reply_markup=_lang_kb())
         else:
             db.set_group_approval(chat_id, "rejected")
             with contextlib.suppress(Exception):

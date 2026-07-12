@@ -139,8 +139,15 @@ _EN = {
     "main.problems_in": "⚠️ NazoratchiAI problems in “{title}”:",
 
     # language selection (chooser text is bilingual by design — shown pre-pick)
-    "lang.choose": "🌐 “{title}” — Choose language / Tilni tanlang:",
-    "lang.set": "✅ Language for “{title}”: {language}",
+    "start.welcome": ("👋 Welcome to NazoratchiAI! I protect Telegram groups"
+                      " from adult-content and spam accounts.\n"
+                      "👋 NazoratchiAI'ga xush kelibsiz! Men Telegram"
+                      " guruhlarini kattalar kontenti va spam akkauntlardan"
+                      " himoya qilaman."),
+    "lang.choose": "🌐 Choose language / Tilni tanlang:",
+    "lang.set": "✅ Language: {language}",
+    "lang.set_groups": "✅ Language: {language} — applied to {n} group(s)",
+    "lang.dm_sent": "📬 I sent the language chooser to your private chat.",
     "lang.name": "English",
     "lang.no_groups": ("You don't own any enabled groups."
                        " Run /enable in your group first."),
@@ -315,8 +322,15 @@ _UZ = {
     "rights.cannot_inspect": "{chat} chatini tekshirib boʻlmadi: {error}",
     "main.problems_in": "⚠️ “{title}” guruhida NazoratchiAI muammolari:",
 
-    "lang.choose": "🌐 “{title}” — Choose language / Tilni tanlang:",
-    "lang.set": "✅ “{title}” uchun til: {language}",
+    "start.welcome": ("👋 Welcome to NazoratchiAI! I protect Telegram groups"
+                      " from adult-content and spam accounts.\n"
+                      "👋 NazoratchiAI'ga xush kelibsiz! Men Telegram"
+                      " guruhlarini kattalar kontenti va spam akkauntlardan"
+                      " himoya qilaman."),
+    "lang.choose": "🌐 Choose language / Tilni tanlang:",
+    "lang.set": "✅ Til: {language}",
+    "lang.set_groups": "✅ Til: {language} — {n} ta guruhga qoʻllandi",
+    "lang.dm_sent": "📬 Til tanlovini shaxsiy chatingizga yubordim.",
     "lang.name": "Oʻzbekcha",
     "lang.no_groups": ("Sizda yoqilgan guruhlar yoʻq. Avval guruhingizda"
                        " /enable buyrugʻini ishga tushiring."),
